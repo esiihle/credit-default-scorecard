@@ -1,0 +1,40 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- Environment / secrets ---
+.env
+*.local
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+
+# --- Data (keep the folders, ignore the contents) ---
+# German Credit is public and small; document the source rather than committing bulk data.
+data/*
+!data/.gitkeep
+
+# --- SAS artefacts ---
+*.log
+*.lst
+*.sas7bdat
+*.sas7bcat
+
+# --- Model artefacts ---
+*.pkl
+*.joblib
+logs/
