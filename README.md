@@ -87,8 +87,8 @@ git clone https://github.com/<your-username>/credit-default-scorecard.git
 cd credit-default-scorecard
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m src.load --config config.yaml     # build the pipeline stage by stage
-python app/scorer.py                         # score an applicant interactively
+python scripts/run_pipeline.py --config config.yaml   # runs the pipeline; each stage lights up as it's built
+python app/scorer.py                                   # interactive applicant scorer (from Phase 7)
 ```
 
 ## Roadmap
@@ -98,7 +98,8 @@ from inception to presentation.
 
 ## Author
 
-**Sihle** — BSc Computer Science (Wits), data analyst. Portfolio project built in the open.
+**Sihle** — BSc Computer Science (Wits), data analyst targeting quantitative and
+credit-risk roles. Portfolio project built in the open.
 
 ## License
 

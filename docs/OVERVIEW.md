@@ -38,7 +38,7 @@ left on the table by choosing interpretability. **Understanding *why* the bank
 chooses the interpretable model is the point** — and it is exactly the
 conversation a credit-risk interview turns on.
 
-## 3. Project Overview
+## 3. Why a recruiter should care (the transfer)
 
 This project *is* the South African bank job in miniature. Its vocabulary and
 deliverables map one-to-one onto retail credit-risk work:
