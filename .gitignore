@@ -5,39 +5,28 @@ __pycache__/
 .eggs/
 build/
 dist/
-
-# --- Virtual environments ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .venv/
 venv/
 env/
 
-# --- Notebooks ---
+# --- Jupyter (never commit notebooks with outputs) ---
 .ipynb_checkpoints/
 
-# --- Test cache ---
-.pytest_cache/
-
-# --- Environment / secrets ---
-.env
-*.local
-
-# --- IDE / OS ---
-.vscode/
-.idea/
-.DS_Store
-
-# --- Data (keep the folders, ignore the contents) ---
-# German Credit is public and small; document the source rather than committing bulk data.
-data/*
+# --- Generated data: bulk outputs are NOT committed ---
+# A tiny hand-checked sample lives under examples/sample_data/ instead.
+data/*.csv
 !data/.gitkeep
 
-# --- SAS artefacts ---
-*.log
-*.lst
-*.sas7bdat
-*.sas7bcat
+# --- Secrets / environment (must never be committed) ---
+.env
+.env.*
+*.key
+*.pem
+credentials.json
 
-# --- Model artefacts ---
-*.pkl
-*.joblib
-logs/
+# --- OS noise ---
+.DS_Store
+Thumbs.db
