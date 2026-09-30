@@ -98,8 +98,7 @@ from inception to presentation.
 
 ## Author
 
-**Sihle** — BSc Computer Science (Wits), data analyst targeting quantitative and
-credit-risk roles. Portfolio project built in the open.
+**Sihle** — BSc Computer Science (Wits), data analyst. Portfolio project built in the open.
 
 ## License
 
