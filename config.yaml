@@ -8,9 +8,19 @@ project: credit-default-scorecard
 seed: 42                       # fixes all randomness for reproducibility
 
 data:
-  sample_path: data/sample/german_credit_sample.csv   # bundled sample (Phase 0)
+  sample_path: data/sample/german_credit_sample.csv   # bundled sample (committed)
   raw_dir: data/raw                                   # real inputs (git-ignored)
   processed_dir: data/processed                       # outputs (git-ignored)
+
+  # --- Real data source (settled 30 Sep 2026) -------------------------------
+  # UCI Statlog (German Credit), dataset 144. The file is space-delimited, has
+  # NO header row, and codes every categorical value as A11, A34, ... — so the
+  # column names and code table live in src/load.py and are applied on load.
+  source: "UCI Statlog (German Credit Data), dataset id 144"
+  source_page: "https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data"
+  raw_file: german.data
+  download_url: "https://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/german.data"
+  sample_rows: 24            # size of the committed sample built by scripts/make_sample.py
 
 # Column contract for the German Credit dataset (readable-name version).
 schema:

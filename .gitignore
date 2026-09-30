@@ -26,10 +26,15 @@ env/
 .idea/
 .DS_Store
 
-# --- Data (keep the folders, ignore the contents) ---
-# German Credit is public and small; document the source rather than committing bulk data.
-data/*
-!data/.gitkeep
+# --- Data ---
+# Raw downloads and processed outputs are NOT version-controlled; we document the
+# source instead. The tiny bundled sample IS committed on purpose, so a fresh
+# clone (and the test suite) runs without anyone downloading anything first.
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+# data/sample/ is deliberately NOT ignored.
 
 # --- SAS artefacts ---
 *.log

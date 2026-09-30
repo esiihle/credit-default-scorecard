@@ -6,11 +6,16 @@ the remaining stages and reports each as [done] or [pending]. As each phase is
 built, its stage lights up here automatically — so this runner doubles as the
 project's live progress indicator.
 
+30 Sep 2026: the runner now prefers the REAL German Credit file in data/raw/.
+If it isn't there it falls back to the committed sample and prints the download
+link, so a fresh clone always runs.
+
 Usage
 -----
-    python scripts/run_pipeline.py                      # config.yaml + bundled sample
+    python scripts/run_pipeline.py                      # real data if present, else sample
     python scripts/run_pipeline.py --config config.yaml # explicit config
-    python scripts/run_pipeline.py --data path/to/other.csv  # different data
+    python scripts/run_pipeline.py --data path/to/other.csv  # one specific file
+    python scripts/run_pipeline.py --sample             # force the bundled sample
 """
 from __future__ import annotations
 
@@ -45,23 +50,45 @@ def main():
     parser = argparse.ArgumentParser(description="Run the scorecard pipeline.")
     parser.add_argument("--config", default=None, help="Path to config.yaml")
     parser.add_argument("--data", default=None, help="Override the input CSV path")
+    parser.add_argument("--sample", action="store_true",
+                        help="Force the bundled sample instead of data/raw")
     args = parser.parse_args()
 
     config = load_config(args.config)
     set_seed(config.get("seed", 42))
 
-    # Resolve the data path (CLI override wins; relative paths resolve to root).
-    data_path = args.data or config["data"]["sample_path"]
-    data_path = Path(data_path)
-    if not data_path.is_absolute():
-        data_path = REPO_ROOT / data_path
-
     print(f"\nScorecard pipeline — config loaded, seed={config.get('seed', 42)}")
-    print(f"input data: {data_path}\n")
 
-    # --- Stage 1: load + EDA (implemented in Phase 0) ---
+    # --- Stage 1: load + EDA ---
+    # Three ways in, in priority order:
+    #   1. --data <file>  : one explicit CSV
+    #   2. data/raw/german.data : the real UCI file (space-delimited, coded)
+    #   3. the committed sample : so a fresh clone always runs
     print("Stage 1 — Load & EDA")
-    df = load.load_data(data_path, config)
+    data_cfg = config["data"]
+    raw_path = REPO_ROOT / data_cfg["raw_dir"] / data_cfg.get("raw_file", "german.data")
+
+    if args.data:
+        data_path = Path(args.data)
+        if not data_path.is_absolute():
+            data_path = REPO_ROOT / data_path
+        print(f"  source: explicit file — {data_path}")
+        df = load.load_data(data_path, config)
+
+    elif raw_path.exists() and not args.sample:
+        print(f"  source: real data — {raw_path.name} ({data_cfg.get('source', 'UCI')})")
+        df = load.load_german_raw(raw_path, config)
+
+    else:
+        sample_path = REPO_ROOT / data_cfg["sample_path"]
+        if not args.sample:
+            print(f"  MISSING: {raw_path.name}  ->  download {data_cfg['download_url']}")
+            print(f"           and save it as {raw_path}")
+        reason = "forced by --sample" if args.sample else "real file not downloaded yet"
+        print(f"  source: bundled sample ({reason}) — {sample_path.name}")
+        df = load.load_data(sample_path, config)
+
+    print()
     print(load.build_eda_report(df, config))
     print()
 

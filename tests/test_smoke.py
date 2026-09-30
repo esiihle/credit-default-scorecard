@@ -66,3 +66,40 @@ def test_downstream_stages_declared_but_pending():
     ):
         with pytest.raises(NotImplementedError):
             call()
+
+
+# --- Added 30 Sep 2026: real-data loading and the code table ---------------
+
+
+def test_raw_column_order_matches_the_config_schema():
+    """Every column the config expects is produced by the raw loader."""
+    config = load_config()
+    schema = config["schema"]
+    expected = set(schema["numeric_columns"]) | set(schema["categorical_columns"])
+    expected.add(schema["target_column"])
+
+    assert expected == set(load.RAW_COLUMN_ORDER), (
+        "config.yaml and RAW_COLUMN_ORDER have drifted apart: "
+        f"{expected.symmetric_difference(set(load.RAW_COLUMN_ORDER))}"
+    )
+
+
+def test_decode_values_translates_codes_to_labels():
+    """A-codes become readable labels."""
+    import pandas as pd
+
+    df = pd.DataFrame({"checking_status": ["A11", "A14"], "housing": ["A152", "A151"]})
+    out = load.decode_values(df)
+
+    assert out["checking_status"].tolist() == ["< 0 DM", "no checking account"]
+    assert out["housing"].tolist() == ["own", "rent"]
+
+
+def test_unknown_code_fails_loudly():
+    """An unrecognised code stops the run instead of creating a junk bin."""
+    import pandas as pd
+
+    df = pd.DataFrame({"housing": ["A151", "A999"]})
+    with pytest.raises(ValueError) as err:
+        load.decode_values(df)
+    assert "A999" in str(err.value)

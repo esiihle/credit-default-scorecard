@@ -10,11 +10,50 @@
 ## 1. Data & target definition
 **Status: 🟡 skeleton — finalised in Phase 1.**
 
-- Primary dataset: **German Credit** (1,000 applicants, 20 attributes, binary
-  good/bad outcome).
-- The **good/bad target** and its rationale are stated here once fixed. Records
-  are split into train / test, with an out-of-time slice where the data allows,
-  to test stability rather than only fit.
+### 1.1 Source (settled 30 Sep 2026)
+
+**UCI Statlog (German Credit Data)**, dataset id 144 — 1,000 applicants, 20
+attributes, binary good/bad outcome. Downloaded as `german.data` from
+`https://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/german.data`.
+
+The file is **space-delimited, has no header row**, and codes every categorical
+value as `A11`, `A34`, `A143` and so on. The column order and the full code
+table therefore live in `src/load.py` and are applied at load time, so every
+later stage — binning, WOE, the points table, the reason codes an applicant
+would see — reads in plain English. An unrecognised code raises rather than
+passing through, because a stray code would silently become a junk bin in
+Phase 2.
+
+Lending Club was ruled out earlier for target leakage. Home Credit remains an
+optional follow-up once this build is complete.
+
+### 1.2 Known caveats of this dataset
+
+- **The published code table is disputed.** Grömping (2019) showed that the
+  widely used UCI code table mislabels several attribute levels, and released a
+  corrected version ("South German Credit"). We use the standard UCI coding so
+  the work is comparable with the published literature, and flag it here. The
+  issue affects the *interpretation* of certain levels, not the mechanics of the
+  scorecard.
+- **Selection bias by construction.** Applicants in this data were all granted
+  credit, so it describes accepted applicants only. Reject inference is the
+  standard bank remedy and is out of scope here — but the limitation is stated
+  rather than glossed over.
+- **Vintage.** The loans date from the 1970s and are denominated in Deutsche
+  Mark. The methodology transfers; the coefficients do not.
+- **`personal_status_sex` encodes sex**, a protected attribute under fair-lending
+  rules. It is loaded so the data stays faithful to source; whether it enters the
+  model is decided explicitly in Phase 3 and recorded there. This is the kind of
+  decision a credit-risk panel will ask about.
+
+### 1.3 Target definition
+
+- The **good/bad target** and its rationale are stated here once fixed in Phase 1.
+  Raw coding is 1 = good, 2 = bad; the recode to 0/1 (1 = default = the modelled
+  event) happens in Phase 1, not at load, so the raw file and the modelling
+  decision stay separable.
+- Records are split into train / test, stratified on the target, with an
+  out-of-time slice where the data allows, to test stability rather than only fit.
 - Notation: for a bin $b$ of a feature, let $g_b, n_b$ be the counts of goods and
   bads; $G, N$ the totals. Distributions $\%good_b = g_b / G$,
   $\%bad_b = n_b / N$.
