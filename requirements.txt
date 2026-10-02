@@ -8,6 +8,10 @@ matplotlib==3.9.2
 pyyaml==6.0.2
 pytest==8.3.3
 
+# Notebooks (exploration onwards). VS Code's Jupyter extension needs a kernel in
+# this environment; ipykernel is that kernel.
+ipykernel==6.29.5
+
 # Added in later phases (kept out of Phase 0 to keep the install light):
 #   statsmodels   -> Phase 4, logistic regression with coefficient p-values
 #   lightgbm      -> Phase 8, the gradient-boosted benchmark
