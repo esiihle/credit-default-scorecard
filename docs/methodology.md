@@ -52,8 +52,52 @@ optional follow-up once this build is complete.
   Raw coding is 1 = good, 2 = bad; the recode to 0/1 (1 = default = the modelled
   event) happens in Phase 1, not at load, so the raw file and the modelling
   decision stay separable.
-- Records are split into train / test, stratified on the target, with an
-  out-of-time slice where the data allows, to test stability rather than only fit.
+- Records are split into train / test, stratified on the target.
+
+### 1.4 Target definition (Phase 1, 2 Oct 2026)
+
+**Bad (1) = default = the modelled event.** Source code 2, which the UCI
+documentation defines as a customer with bad credit risk. **Good (0)** = source
+code 1. The recode happens in `src/load.py::define_target`, after loading and
+before the split, and it is the only place the direction is set.
+
+Three limitations are inherited with that definition, stated rather than hidden:
+
+1. **No delinquency depth or performance window.** The source gives no
+   days-past-due and no observation period, so "bad" cannot be tightened to a
+   Basel-style 90-days-past-due rule. We inherit the publisher's label.
+2. **Accepted applicants only.** Every record was granted credit, so this is an
+   accept-population model. Reject inference is the standard bank remedy and is
+   out of scope; the consequence is that the model describes risk among people a
+   lender already said yes to.
+3. **Direction must stay consistent.** 1 is the event, so a higher predicted
+   probability means a worse applicant. If that direction flips anywhere between
+   here and the points table, the scorecard silently ranks backwards — which is
+   why the recode is tested (`test_target_recode_direction`).
+
+### 1.5 The frozen split (Phase 1)
+
+- **70 / 30 train / test, stratified on the target, seeded** from
+  `config.yaml` (`seed: 42`). Stratified because the bad rate is ~30%: an
+  unstratified split can hand the test set a materially different bad rate, and
+  every metric computed on it would then be measuring the split rather than the
+  model.
+- Written to `data/processed/train.csv` and `test.csv`, with
+  `split_manifest.json` recording the seed, row counts, bad rate per half, and a
+  **fingerprint** — a hash of the sorted applicant IDs in each half. A later run
+  producing the same fingerprints proves the split is identical, which turns
+  "reproducible from a seed" from a claim into a check.
+- **No out-of-time slice is possible.** German Credit carries no application or
+  performance date, so there is nothing to split time on. Stability is instead
+  tested in Phase 5 with PSI across the random split. This is a real limitation
+  of the dataset, not of the method: on a bank's own book, an out-of-time slice
+  would be the first thing a credit committee asked for.
+- `applicant_id` (APP_0001 …) is built from row position, because the source has
+  no identifier. That is stable only because the file is a static published
+  download that we never edit.
+
+**Nothing downstream may re-split, re-sample, or read the test set** until Phase
+5 validation. The split is frozen here on purpose.
 - Notation: for a bin $b$ of a feature, let $g_b, n_b$ be the counts of goods and
   bads; $G, N$ the totals. Distributions $\%good_b = g_b / G$,
   $\%bad_b = n_b / N$.

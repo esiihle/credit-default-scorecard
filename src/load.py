@@ -19,6 +19,10 @@ from pathlib import Path
 
 import pandas as pd
 
+# Repo root = two levels up from this file (src/load.py -> src -> repo root).
+# Used to resolve the relative paths in config.yaml the same way from anywhere.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 # ---------------------------------------------------------------------------
 # The UCI file's 21 columns, IN ORDER. Names match config.yaml's schema block.
 # Source: german.doc (the dataset's own documentation).
@@ -299,3 +303,320 @@ def build_eda_report(df, config=None):
     )
 
     return "\n".join(lines)
+
+
+# ===========================================================================
+# Phase 1 — target definition, validation, frozen train/test split
+# ===========================================================================
+#
+# The order matters and is deliberate:
+#
+#   validate_raw -> clean -> define_target -> to_analysis_table -> split
+#
+# The target is defined BEFORE the split, and the split is frozen to disk with a
+# manifest. Nothing after this point may re-split, re-sample, or peek at test.
+
+
+class DataQualityError(Exception):
+    """Raised when the input is too broken to model on.
+
+    A distinct exception type so a caller can tell "this data is unusable" apart
+    from an ordinary programming error.
+    """
+
+
+def validate_raw(df, config):
+    """Structural checks before any cleaning. Raises on anything fatal.
+
+    Returns
+    -------
+    list of str
+        Non-fatal notes for the data-quality report.
+    """
+    notes = []
+    schema = config.get("schema", {})
+    target = schema.get("target_column", "target")
+
+    if len(df) == 0:
+        raise DataQualityError("The input has no rows at all.")
+
+    expected = list(schema.get("numeric_columns", [])) + \
+        list(schema.get("categorical_columns", [])) + [target]
+    missing = [c for c in expected if c not in df.columns]
+    if missing:
+        raise DataQualityError(
+            f"Required columns are missing: {missing}. "
+            f"Columns present: {sorted(df.columns)}"
+        )
+
+    raw_codes = set(df[target].dropna().unique())
+    if not raw_codes <= {1, 2}:
+        raise DataQualityError(
+            f"Target column '{target}' holds unexpected codes: {sorted(raw_codes)}. "
+            "Expected 1 (good) and 2 (bad)."
+        )
+    if len(raw_codes) < 2:
+        raise DataQualityError(
+            "The target has only one class — a scorecard cannot be built from it."
+        )
+
+    return notes
+
+
+def clean(df, config):
+    """Apply plausibility rules and count every row changed or removed.
+
+    Nothing here is clever. It exists because a single 200-year-old applicant or
+    a duplicated row will quietly distort a bin boundary in Phase 2, and that
+    distortion is very hard to spot once it has reached a points table.
+    """
+    rules = config.get("validation", {})
+    report = {"rows_in": len(df)}
+    out = df.copy()
+
+    # --- Numeric coercion -------------------------------------------------
+    for col in config.get("schema", {}).get("numeric_columns", []):
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col], errors="coerce")
+
+    # --- Plausibility ranges ----------------------------------------------
+    # Each limit lives in config.yaml, so a reviewer can argue with the number
+    # without reading any code.
+    checks = {
+        "age_years": (rules.get("min_age", 18), rules.get("max_age", 100)),
+        "duration_months": (rules.get("min_duration_months", 1),
+                            rules.get("max_duration_months", 120)),
+        "credit_amount": (rules.get("min_credit_amount", 1),
+                          rules.get("max_credit_amount", 100000)),
+    }
+
+    implausible = pd.Series(False, index=out.index)
+    for col, (low, high) in checks.items():
+        if col not in out.columns:
+            continue
+        bad = out[col].isna() | (out[col] < low) | (out[col] > high)
+        report[f"dropped_implausible_{col}"] = int(bad.sum())
+        implausible = implausible | bad
+
+    out = out[~implausible]
+
+    # --- Duplicates -------------------------------------------------------
+    # This dataset has no applicant ID, so a duplicate is an exact repeat of
+    # every field. Two genuinely identical applications are possible but rare;
+    # a repeated row is far more likely to be a loading error.
+    if rules.get("drop_duplicate_rows", True):
+        duplicated = out.duplicated(keep="first")
+        report["dropped_duplicate_rows"] = int(duplicated.sum())
+        out = out[~duplicated]
+    else:
+        report["dropped_duplicate_rows"] = 0
+
+    report["rows_out"] = len(out)
+    return out.reset_index(drop=True), report
+
+
+def define_target(df, config, column="is_default"):
+    """Create the modelled target: 1 = default (bad), 0 = good.
+
+    The good/bad definition, stated plainly so it can be defended:
+
+      * **Bad (1)** = the applicant is labelled 2 in the source, which the UCI
+        documentation defines as a customer with *bad credit risk* — the loan did
+        not perform.
+      * **Good (0)** = labelled 1, a customer whose credit performed.
+
+    Three things worth knowing about that definition, all recorded in the
+    methodology rather than glossed over:
+
+      1. The source gives no delinquency depth (30/60/90 days past due) and no
+         performance window, so "bad" cannot be tightened to a Basel-style
+         90-days-past-due rule. We inherit the publisher's definition.
+      2. Every applicant in the file was **granted** credit, so this is an
+         accepted-population model. Reject inference is out of scope.
+      3. 1 is the event we model, so a higher predicted probability means a worse
+         applicant. That direction has to stay consistent through WOE, the
+         coefficients and the final points table.
+    """
+    schema = config.get("schema", {})
+    target = schema.get("target_column", "target")
+    bad_code = schema.get("bad_value_raw", 2)
+
+    out = df.copy()
+    out[column] = (out[target] == bad_code).astype(int)
+    return out
+
+
+def to_analysis_table(df, config, id_prefix="APP"):
+    """Add a stable applicant ID and order the columns for analysis.
+
+    German Credit has no identifier of its own, so one is built from row
+    position: ``APP_0001`` and so on. That is only stable as long as the source
+    file's row order is — which it is, because the file is a static published
+    download and we never edit it. Noted here because an ID that silently
+    changes meaning is worse than no ID at all.
+    """
+    schema = config.get("schema", {})
+    out = df.copy()
+
+    out.insert(0, "applicant_id",
+               [f"{id_prefix}_{i + 1:04d}" for i in range(len(out))])
+
+    ordered = (["applicant_id"]
+               + list(schema.get("numeric_columns", []))
+               + list(schema.get("categorical_columns", []))
+               + [schema.get("target_column", "target"), "is_default"])
+    ordered = [c for c in ordered if c in out.columns]
+    return out[ordered]
+
+
+def split_train_test(df, config, target_column="is_default"):
+    """Split into train and test, stratified on the target, from the seed.
+
+    Stratified because the bad rate is ~30%: an unstratified split can easily
+    hand the test set a materially different bad rate, and every metric computed
+    on it would then be measuring the split rather than the model.
+
+    Returns
+    -------
+    (train, test) : tuple of DataFrame
+    """
+    from sklearn.model_selection import train_test_split
+
+    split_cfg = config.get("split", {})
+    seed = config.get("seed", 42)
+    test_size = split_cfg.get("test_size", 0.30)
+    stratify = df[target_column] if split_cfg.get("stratify", True) else None
+
+    train, test = train_test_split(
+        df,
+        test_size=test_size,
+        random_state=seed,      # the seed is what makes this reproducible
+        stratify=stratify,
+        shuffle=True,
+    )
+    return train.reset_index(drop=True), test.reset_index(drop=True)
+
+
+def split_manifest(train, test, config, target_column="is_default"):
+    """Describe the split precisely enough to prove a later run is identical.
+
+    The fingerprint is a hash of the sorted applicant IDs in each half. If a
+    future run produces the same two fingerprints, the split is byte-identical —
+    which is how "reproducible from a seed" stops being a claim and becomes a
+    check.
+    """
+    import hashlib
+    from datetime import datetime, timezone
+
+    def fingerprint(frame):
+        ids = ",".join(sorted(frame["applicant_id"].astype(str)))
+        return hashlib.sha256(ids.encode()).hexdigest()[:16]
+
+    def describe(frame):
+        return {
+            "rows": int(len(frame)),
+            "bad_rate": round(float(frame[target_column].mean()), 4),
+            "bads": int(frame[target_column].sum()),
+            "fingerprint": fingerprint(frame),
+        }
+
+    return {
+        "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "seed": config.get("seed", 42),
+        "test_size": config.get("split", {}).get("test_size", 0.30),
+        "stratified": bool(config.get("split", {}).get("stratify", True)),
+        "out_of_time_slice": bool(config.get("split", {}).get("out_of_time", False)),
+        "target_column": target_column,
+        "target_definition": "1 = source code 2 (bad credit risk); 0 = source code 1 (good)",
+        "train": describe(train),
+        "test": describe(test),
+    }
+
+
+def save_splits(train, test, manifest, config):
+    """Write train.csv, test.csv and the manifest. Returns the three paths."""
+    import json
+
+    split_cfg = config.get("split", {})
+    out_dir = Path(config["data"].get("processed_dir", "data/processed"))
+    if not out_dir.is_absolute():
+        out_dir = REPO_ROOT / out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    train_path = out_dir / split_cfg.get("train_filename", "train.csv")
+    test_path = out_dir / split_cfg.get("test_filename", "test.csv")
+    manifest_path = out_dir / split_cfg.get("manifest_filename", "split_manifest.json")
+
+    train.to_csv(train_path, index=False)
+    test.to_csv(test_path, index=False)
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+
+    return train_path, test_path, manifest_path
+
+
+def quality_report(report, train=None, test=None, manifest=None):
+    """Render the Phase 1 counts and the resulting split as readable text."""
+    lines = ["Data-quality report", "-" * 19]
+    labels = {
+        "rows_in": "rows read",
+        "dropped_implausible_age_years": "dropped: age outside plausible range",
+        "dropped_implausible_duration_months": "dropped: loan term outside range",
+        "dropped_implausible_credit_amount": "dropped: credit amount outside range",
+        "dropped_duplicate_rows": "dropped: exact duplicate rows",
+        "rows_out": "rows kept",
+    }
+    for key, label in labels.items():
+        if key in report:
+            lines.append(f"  {label:<40} {report[key]:>6,}")
+    if report.get("rows_in"):
+        lines.append(f"  {'share of rows kept':<40} "
+                     f"{report['rows_out'] / report['rows_in']:>6.1%}")
+
+    if train is not None and test is not None:
+        lines += ["", "Frozen split", "-" * 12]
+        lines.append(f"  {'train rows':<40} {len(train):>6,}")
+        lines.append(f"  {'test rows':<40} {len(test):>6,}")
+        if manifest:
+            lines.append(f"  {'train bad rate':<40} "
+                         f"{manifest['train']['bad_rate']:>6.1%}")
+            lines.append(f"  {'test bad rate':<40} "
+                         f"{manifest['test']['bad_rate']:>6.1%}")
+            lines.append(f"  {'seed':<40} {manifest['seed']:>6}")
+            lines.append(f"  train fingerprint: {manifest['train']['fingerprint']}")
+            lines.append(f"  test  fingerprint: {manifest['test']['fingerprint']}")
+    return "\n".join(lines)
+
+
+def run_phase1(df_raw, config, save=True):
+    """Run validation, target definition and the frozen split end to end.
+
+    Returns
+    -------
+    (train, test, report, manifest)
+    """
+    rules = config.get("validation", {})
+
+    notes = validate_raw(df_raw, config)
+    cleaned, report = clean(df_raw, config)
+    report["notes"] = notes
+
+    # The guard rail: losing most of the file is a reason to stop, not to shrug.
+    dropped_fraction = 1 - (report["rows_out"] / report["rows_in"])
+    limit = rules.get("max_dropped_fraction", 0.05)
+    if dropped_fraction > limit:
+        raise DataQualityError(
+            f"Dropped {dropped_fraction:.1%} of rows, above the {limit:.0%} limit. "
+            "Inspect the raw file before continuing — do not relax this silently."
+        )
+
+    labelled = define_target(cleaned, config)
+    table = to_analysis_table(labelled, config)
+    train, test = split_train_test(table, config)
+    manifest = split_manifest(train, test, config)
+
+    if save:
+        train_path, test_path, manifest_path = save_splits(train, test, manifest, config)
+        report["saved_to"] = [str(train_path), str(test_path), str(manifest_path)]
+
+    return train, test, report, manifest

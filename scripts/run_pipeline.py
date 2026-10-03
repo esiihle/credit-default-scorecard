@@ -52,6 +52,8 @@ def main():
     parser.add_argument("--data", default=None, help="Override the input CSV path")
     parser.add_argument("--sample", action="store_true",
                         help="Force the bundled sample instead of data/raw")
+    parser.add_argument("--no-save", action="store_true",
+                        help="Run the checks but don't write train/test to disk")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -90,6 +92,16 @@ def main():
 
     print()
     print(load.build_eda_report(df, config))
+
+    # --- Phase 1: validate, define the target, freeze the split --------------
+    # Everything downstream trains on `train` and never looks at `test`.
+    print()
+    train, test, report, manifest = load.run_phase1(df, config, save=not args.no_save)
+    print(load.quality_report(report, train, test, manifest))
+    if "saved_to" in report:
+        print("\n  written:")
+        for path in report["saved_to"]:
+            print(f"    {path}")
     print()
 
     # --- Downstream stages (progressively implemented) ---

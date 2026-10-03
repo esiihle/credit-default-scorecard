@@ -5,11 +5,12 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 0 complete (Sep 28 – Oct 4); Phase 1 opens 5 Oct
+**Current phase:** Phase 1 — Target definition & split (Oct 5 – Oct 11), started early
 **Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
 tests green (7); exploration notebook written and run.
-**Next action:** In `src/load.py` (the `PHASE 1` marker), recode the target
-(raw 1 = good, 2 = bad -> 0/1) and build a stratified train/test split.
+**Next action:** Run the exploration notebook and fill in its findings table
+(carried over from 1 Oct), then review the Phase 1 data-quality report and the
+split manifest.
 **Schedule:** baselined from 28 Sep 2026; target presentation **27 Nov 2026**
 (Python), 11 Dec 2026 with the optional SAS build.
 **Cadence:** one commit per working day.
@@ -20,7 +21,9 @@ tests green (7); exploration notebook written and run.
 - [ ] **SAS build (Phase 9):** in or out? Depends on SAS OnDemand access.
 - [x] **Real data:** done 30 Sep 2026 — UCI `german.data` (1,000 rows) loads via
       `src/load.py`, with the column order and A-code table applied at load time.
-- [ ] **Good/bad definition:** confirmed as raw target (2 = bad = default) — recode in Phase 1.
+- [x] **Good/bad definition:** done 2 Oct 2026 — 1 = default (source code 2),
+      0 = good. Documented in methodology §1.4 with its three limitations
+      (no delinquency depth, accepted-applicants only, direction consistency).
 - [ ] **`personal_status_sex`:** encodes sex, a protected attribute. Decide in
       Phase 3 whether it enters the model, and record the reasoning — a panel
       will ask.
@@ -45,13 +48,43 @@ python scripts/run_pipeline.py     # real data from data/raw if present, else th
 python scripts/run_pipeline.py --sample   # force the committed sample
 python scripts/make_sample.py      # rebuild the committed sample from the real file
 python app/scorer.py               # placeholder until Phase 7
-pytest                             # 7 smoke tests, all green
+pytest                             # 20 tests (smoke + Phase 1), all green
+python scripts/run_pipeline.py --no-save  # run the checks without writing splits
 # notebooks/01_exploration.ipynb   # open in VS Code, Run All
 ```
 
 ---
 
 ## Session log
+
+### 2026-10-02 — Phase 1: target definition, validation, frozen split
+- `src/load.py`: Phase 1 flow — `validate_raw` → `clean` → `define_target` →
+  `to_analysis_table` → `split_train_test` → `save_splits`, orchestrated by
+  `run_phase1`.
+  - Structural faults raise `DataQualityError`: missing column, a target code
+    that isn't 1 or 2, or a target with only one class.
+  - Cleaning: numeric coercion, plausibility ranges for age / term / amount
+    (all in `config.yaml`), exact duplicate rows dropped, every count reported.
+  - `define_target`: **1 = default**, with the definition and its three
+    limitations written into the docstring and methodology §1.4.
+  - `applicant_id` added (APP_0001 …), since the source has no identifier.
+  - 70/30 stratified split from the seed, written to `data/processed/` with
+    `split_manifest.json` — seed, counts, bad rate per half, and a **fingerprint**
+    hash of each half's IDs, so reproducibility is checkable, not asserted.
+  - Guard rail: dropping more than `validation.max_dropped_fraction` (5%) of rows
+    stops the run.
+- `config.yaml`: new `validation` block; `split` block extended with
+  `out_of_time: false` and the reason (no date column in this dataset).
+- `scripts/run_pipeline.py`: runs Phase 1 and prints the quality report plus the
+  frozen-split summary (`--no-save` to skip writing).
+- `tests/test_load.py` (new): 13 behaviour tests — missing column, bad target
+  code, single-class target, implausible age, duplicate rows, **recode
+  direction**, split sizes, stratification, no train/test overlap, same-seed
+  reproducibility, different-seed difference, end to end, and the drop-fraction
+  guard. Suite now 20 green.
+- **Not yet done:** the exploration notebook from 1 Oct still needs running and
+  its findings table filling in.
+- **Next:** Phase 2 — binning and monotonic coarse classing.
 
 ### 2026-10-01 — Exploration notebook
 - Added `notebooks/01_exploration.ipynb`, importing from `src/` rather than

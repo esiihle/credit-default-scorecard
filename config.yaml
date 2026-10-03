@@ -50,10 +50,31 @@ schema:
     - telephone
     - foreign_worker
 
+# --- Phase 1: data validation rules ------------------------------------------
+# Plausibility limits for this portfolio. Every threshold is configuration so it
+# can be read and challenged without opening a .py file.
+validation:
+  min_age: 18                  # below the age of majority = a data error
+  max_age: 100
+  min_duration_months: 1
+  max_duration_months: 120     # 10 years is already long for this book
+  min_credit_amount: 1
+  max_credit_amount: 100000
+  drop_duplicate_rows: true
+  max_dropped_fraction: 0.05   # if we'd drop more than 5%, stop and shout
+
 # Train/test split (Phase 1).
 split:
   test_size: 0.30
-  stratify: true
+  stratify: true               # keep the same bad rate in both halves
+  # Out-of-time slice: NOT possible with this dataset — German Credit carries no
+  # application or performance date. Stability is therefore tested in Phase 5 with
+  # PSI across the random split, and the limitation is stated in the methodology
+  # rather than hidden.
+  out_of_time: false
+  train_filename: train.csv
+  test_filename: test.csv
+  manifest_filename: split_manifest.json
 
 # Binning / coarse classing (Phase 2).
 binning:
