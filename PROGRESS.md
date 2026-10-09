@@ -5,7 +5,7 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 1 — Target definition & split (Oct 5 – Oct 11), started early
+**Current phase:** Phase 2 — Binning / monotonic classing (Oct 12 – Oct 18), started early
 **Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
 tests green (7); exploration notebook written and run.
 **Next action:** Run the exploration notebook and fill in its findings table
@@ -48,7 +48,7 @@ python scripts/run_pipeline.py     # real data from data/raw if present, else th
 python scripts/run_pipeline.py --sample   # force the committed sample
 python scripts/make_sample.py      # rebuild the committed sample from the real file
 python app/scorer.py               # placeholder until Phase 7
-pytest                             # 20 tests (smoke + Phase 1), all green
+pytest                             # 33 tests (smoke + Phases 1-2), all green
 python scripts/run_pipeline.py --no-save  # run the checks without writing splits
 # notebooks/01_exploration.ipynb   # open in VS Code, Run All
 ```
@@ -56,6 +56,32 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-05 — Phase 2: binning and monotonic coarse classing
+- `src/binning.py` built: quantile fine-classing, then adjacent-pair merging
+  until the config constraints hold — minimum bin size, then maximum bin count,
+  then monotonic trend, in that order and for that reason.
+  - `fit_numeric_bins`, `fit_categorical_bins`, `fit_bins` (whole spec),
+    `apply_bins`, `bin_summary`, `check_monotonic`, `save_spec` / `load_spec`.
+  - `MISSING` and `UNSEEN` bins always exist; numeric edges run -inf to +inf, so
+    an unseen category or an out-of-range value never crashes the scorer.
+  - Spec frozen to `data/processed/binning_spec.json` — readable JSON, because
+    bin boundaries are what a reviewer signs off.
+- **Fitted on train only**, applied to test. Binning reads the target, so fitting
+  it on all the data leaks test information through the bin boundaries — the
+  subtlest leak in scorecard work.
+- `scripts/run_pipeline.py`: Stage 2 runs, prints bins in natural order with
+  share and bad rate, and warns about any numeric feature that did not come out
+  monotonic.
+- `config.yaml`: `binning.fine_bins` and `binning.spec_filename` added.
+- `tests/test_binning.py` (new): 13 tests — max bins, min share, monotonicity
+  enforced against a deliberate blip, open outer edges, few-distinct-values
+  features, thin categorical levels merged, UNSEEN, MISSING, determinism, JSON
+  round trip, target required, spec unchanged by test data, natural bin order.
+- Phase 0 smoke test updated: binning no longer belongs in the "not built yet"
+  list. Suite now 33 green.
+- **Next:** Phase 3 — WOE / IV and feature selection. The hand-computed IV from
+  the exploration notebook is the fixture it must reproduce.
 
 ### 2026-10-02 — Phase 1: target definition, validation, frozen split
 - `src/load.py`: Phase 1 flow — `validate_raw` → `clean` → `define_target` →

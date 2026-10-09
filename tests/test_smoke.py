@@ -54,9 +54,12 @@ def test_missing_target_fails_loudly():
 
 
 def test_downstream_stages_declared_but_pending():
-    """Every downstream stage exists and cleanly signals 'not built yet'."""
+    """Every stage NOT YET BUILT exists and cleanly signals 'not built yet'.
+
+    Stages drop off this list as they are implemented: binning left it in
+    Phase 2 (5 Oct 2026) and is now covered by tests/test_binning.py.
+    """
     for call in (
-        lambda: binning.fit_bins(None),
         lambda: woe.compute_woe_iv(None),
         lambda: model.fit_pd_model(None),
         lambda: validate.evaluate(None),

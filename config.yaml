@@ -81,6 +81,8 @@ binning:
   max_bins: 5
   min_bin_fraction: 0.05        # each bin must hold at least 5% of accounts
   enforce_monotonic: true
+  fine_bins: 20                 # starting quantile bins, before merging
+  spec_filename: binning_spec.json   # the frozen bin definitions
 
 # WOE / IV selection (Phase 3).
 woe:

@@ -104,10 +104,35 @@ def main():
             print(f"    {path}")
     print()
 
+    # --- Phase 2: binning, fitted on TRAIN ONLY ------------------------------
+    print("Stage 2 — Binning (coarse classing)")
+    spec = binning.fit_bins(train, config)
+
+    train_binned = binning.apply_bins(train, spec)
+    test_binned = binning.apply_bins(test, spec)      # applied, never re-fitted
+
+    trend = binning.check_monotonic(train_binned, train["is_default"], spec)
+    rising = [f for f, d in trend.items() if d in ("rising", "falling")]
+    print(f"  features binned: {len(spec['features'])}"
+          f"  ({len(rising)} of {len(trend)} numeric features monotonic)")
+    for feature, direction in trend.items():
+        if direction not in ("rising", "falling"):
+            print(f"  WARNING: {feature} is {direction} after binning")
+
+    summary = binning.bin_summary(train_binned, train["is_default"], spec)
+    print()
+    print(summary.head(12).to_string(index=False,
+                                     float_format=lambda v: f"{v:.3f}"))
+    print(f"  ... {len(summary)} bins across all features")
+
+    if not args.no_save:
+        spec_path = binning.save_spec(spec, config)
+        print(f"\n  binning spec written to: {spec_path}")
+
     # --- Downstream stages (progressively implemented) ---
+    print()
     print("Downstream stages:")
-    binned = _run_stage("Stage 2 — Binning", binning.fit_bins, df, config)
-    woe_feats = _run_stage("Stage 3 — WOE / IV", woe.compute_woe_iv, df, config)
+    woe_feats = _run_stage("Stage 3 — WOE / IV", woe.compute_woe_iv, train_binned, config)
     pd_model = _run_stage("Stage 4 — PD model", model.fit_pd_model, woe_feats, config)
     _run_stage("Stage 5 — Validation", validate.evaluate, pd_model, config)
     _run_stage("Stage 6 — Score scaling", scaling.build_scorecard, pd_model, config)

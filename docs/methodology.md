@@ -102,14 +102,64 @@ Three limitations are inherited with that definition, stated rather than hidden:
   bads; $G, N$ the totals. Distributions $\%good_b = g_b / G$,
   $\%bad_b = n_b / N$.
 
-## 2. Binning / classing
-**Status: 🟡 skeleton — built in Phase 2.**
+## 2. Binning / coarse classing  *(built 5 Oct 2026)*
 
-Each feature is **fine-classed** (many bins) then **coarse-classed** into a small
-number of bins chosen so the bad rate is **monotonic** across the ordered bins.
-Continuous and categorical features are handled, with explicit special bins for
-missing / sentinel values. Monotonicity is what makes the final points table
-stable and defensible to a regulator.
+A scorecard never uses raw values. Each feature is cut into a few bins, and the
+model learns one number per bin. That buys three things a credit committee cares
+about more than a decimal of AUC:
+
+1. **Explainability** — the points table reads as a short list of plain statements.
+2. **Stability** — a bin holding 15% of the book moves slowly; a raw value moves
+   with every applicant.
+3. **Monotonicity** — "longer term, more risk" can be checked against business
+   intuition. A bad rate that zig-zags is usually fitted noise and is very hard
+   to defend in a model review.
+
+### 2.1 Method
+
+    fine-class (quantiles)  ->  merge until constraints hold  ->  freeze to JSON
+
+Merging always joins **adjacent** bins, and always the pair with the smallest
+bad-rate gap, so the splits that survive are the ones that genuinely separate
+risk. Constraints are applied in a fixed order, from `config.yaml`:
+
+| Order | Constraint | Setting | Why first/last |
+|---|---|---|---|
+| 1 | Minimum bin size | `binning.min_bin_fraction` (5%) | a tiny bin's bad rate is noise, so it must not be allowed to drive the monotonicity decision |
+| 2 | Maximum bin count | `binning.max_bins` (5) | more bins means a longer, less stable points table |
+| 3 | Monotonic trend | `binning.enforce_monotonic` | applied last, on bins already big enough to trust |
+
+Categorical features are sorted by bad rate and merged the same way, so each
+group holds levels of similar risk. Monotonicity is not enforced for them: a
+category has no natural order, and ordering by risk is the ordering.
+
+### 2.2 Fitted on train only
+
+Bins are learned from the training half of the frozen split and then **applied**
+to test, never re-fitted. Binning is supervised — it reads the target — so
+fitting it on all the data would leak test information into the model through
+the bin boundaries themselves. This is the subtlest leak in scorecard work,
+because nothing downstream looks wrong.
+
+The spec is frozen to `data/processed/binning_spec.json`: readable JSON, because
+bin boundaries are exactly what a reviewer wants to read and sign off.
+
+### 2.3 Two bins that always exist
+
+- `MISSING` — a value that is absent. Not an error, not an imputation: a bin,
+  which Phase 3 gives its own WOE.
+- `UNSEEN` — a category that did not exist at fit time. A new product code in
+  live data must not crash the scorer.
+
+Numeric bin edges run from -inf to +inf for the same reason: an applicant
+younger or older than anyone in training still scores.
+
+### 2.4 Features that cannot be binned
+
+If a feature collapses to a single bin under these constraints (too few distinct
+values, or no separation), it carries no information. It is left in place and
+dropped in Phase 3 by the IV threshold, rather than deleted here — one place
+decides what enters the model.
 
 ## 3. Weight of Evidence & Information Value
 **Status: 🟡 skeleton — built in Phase 3.**
