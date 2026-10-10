@@ -12,6 +12,10 @@ pytest==8.3.3
 # this environment; ipykernel is that kernel.
 ipykernel==6.29.5
 
+# Phase 4: logistic regression with standard errors and p-values. sklearn can
+# fit the model but will not give coefficient significance, which a credit
+# committee asks for first.
+statsmodels==0.14.2
+
 # Added in later phases (kept out of Phase 0 to keep the install light):
-#   statsmodels   -> Phase 4, logistic regression with coefficient p-values
 #   lightgbm      -> Phase 8, the gradient-boosted benchmark

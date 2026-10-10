@@ -91,6 +91,25 @@ woe:
   spec_filename: woe_spec.json  # frozen WOE tables — what a model validator reads
   woe_matrix_filename: train_woe.csv
 
+# --- Phase 4: logistic PD model -----------------------------------------------
+model:
+  p_value_max: 0.05            # a variable that might have zero effect does not
+                               # belong in a model used for years
+  vif_max: 5.0                 # above this, two features are telling one story
+  bootstrap_resamples: 50      # coefficient-stability check
+
+  # Minimum EVENTS (bads) per feature. The binding constraint on a logistic fit
+  # is the event count, not the row count: below ~10 events per variable the
+  # standard errors are unreliable and the model may not be identified at all.
+  # Raising the feature count or lowering this number to silence an error is the
+  # wrong fix — get more data instead.
+  min_events_per_variable: 10.0
+  # Once the feature set has settled, turn this on: a positive coefficient then
+  # stops the run instead of being reported. Left off during selection so the
+  # full diagnostic picture can be read first.
+  enforce_negative_signs: false
+  model_filename: pd_model.json
+
 # Score scaling (Phase 6) — standard PDO / factor / offset.
 scaling:
   pdo: 20                       # points to double the good:bad odds

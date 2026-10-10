@@ -67,6 +67,7 @@ def main():
     #   2. data/raw/german.data : the real UCI file (space-delimited, coded)
     #   3. the committed sample : so a fresh clone always runs
     print("Stage 1 — Load & EDA")
+    on_sample = False          # set in the fallback branch below
     data_cfg = config["data"]
     raw_path = REPO_ROOT / data_cfg["raw_dir"] / data_cfg.get("raw_file", "german.data")
 
@@ -89,6 +90,12 @@ def main():
         reason = "forced by --sample" if args.sample else "real file not downloaded yet"
         print(f"  source: bundled sample ({reason}) — {sample_path.name}")
         df = load.load_data(sample_path, config)
+        on_sample = True
+        print()
+        print("  NOTE: the sample is 24 rows. The data stages below are real and")
+        print("  worth reading, but the MODEL stages cannot run on it — there are")
+        print("  not enough events to fit a logistic regression. Download the real")
+        print("  file to exercise the whole pipeline.")
 
     print()
     print(load.build_eda_report(df, config))
@@ -148,10 +155,40 @@ def main():
         woe_path = woe.save_spec(woe_spec, config)
         print(f"\n  WOE spec written to: {woe_path}")
 
+    # --- Phase 4: logistic PD model, trained on TRAIN ONLY -------------------
+    print()
+    print("Stage 4 — Logistic PD model")
+    pd_model = None
+    try:
+        pd_model = model.fit_pd_model(train_woe, train["is_default"], config)
+    except model.ModelError as error:
+        # Not an unexpected failure: on the bundled sample there are far too few
+        # events to identify the parameters, and refusing is the correct answer.
+        # The run continues so the rest of the pipeline still reports its status.
+        print("  CANNOT FIT — and that is the right outcome here:")
+        for line in str(error).splitlines():
+            print(f"    {line}")
+
+    if pd_model is not None:
+        print(model.model_report(pd_model))
+
+        # In-sample PD, as a sanity check only. The real numbers come from
+        # Phase 5 on the held-out half; test_woe exists here but is deliberately
+        # not scored.
+        train_pd = model.predict_pd(pd_model, train_woe)
+        print()
+        print(f"  mean predicted PD on train   {train_pd.mean():.1%}")
+        print(f"  observed bad rate on train   {train['is_default'].mean():.1%}")
+        print("  (a fitted logistic is calibrated in-sample by construction — this")
+        print("   says nothing about performance. Phase 5 uses the held-out half.)")
+
+        if not args.no_save:
+            pd_path = model.save_model(pd_model, config)
+            print(f"\n  PD model written to: {pd_path}")
+
     # --- Downstream stages (progressively implemented) ---
     print()
     print("Downstream stages:")
-    pd_model = _run_stage("Stage 4 — PD model", model.fit_pd_model, train_woe, config)
     _run_stage("Stage 5 — Validation", validate.evaluate, pd_model, config)
     _run_stage("Stage 6 — Score scaling", scaling.build_scorecard, pd_model, config)
     _run_stage("Stage 8 — Benchmark", benchmark.run_benchmark, df, config)

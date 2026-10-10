@@ -5,7 +5,7 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 3 — WOE / IV & feature selection (Oct 19 – Oct 25), started early
+**Current phase:** Phase 4 — Logistic PD model (Oct 26 – Nov 1), started early
 **Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
 tests green (7); exploration notebook written and run.
 **Next action:** Run the exploration notebook and fill in its findings table
@@ -48,7 +48,7 @@ python scripts/run_pipeline.py     # real data from data/raw if present, else th
 python scripts/run_pipeline.py --sample   # force the committed sample
 python scripts/make_sample.py      # rebuild the committed sample from the real file
 python app/scorer.py               # placeholder until Phase 7
-pytest                             # 50 tests (smoke + Phases 1-3), all green
+pytest                             # 74 tests (smoke + Phases 1-4), all green
 python scripts/run_pipeline.py --no-save  # run the checks without writing splits
 # notebooks/01_exploration.ipynb   # open in VS Code, Run All
 ```
@@ -56,6 +56,69 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-10 (later) — Phase 4 hardening: events-per-variable guard
+- A real run against the bundled 24-row sample crashed Stage 4 with
+  `LinAlgError: Singular matrix` — 14 features, 5 bads, 15 parameters from 16
+  rows. Reproduced here and found to be **worse than a crash on other library
+  versions**: it returned coefficients of -21.9 with NaN standard errors and VIF
+  of 299, with no error at all. Silent nonsense beats a traceback for danger.
+- `src/model.py`: added an **events-per-variable guard**
+  (`model.min_events_per_variable`, default 10). EPV counts the minority class,
+  not rows — a 10,000-row book with 8 bads is still unfittable, and a row count
+  hides that completely. The error names the likely cause (running on the
+  sample), the fix, and says explicitly not to lower the threshold.
+- Also refused now: standard errors in the thousands. Perfect separation does
+  not raise and does not produce NaNs — the optimiser walks toward infinity and
+  statsmodels reports a coefficient of -13.4 with a standard error of 16,342.
+  On the WOE scale a believable coefficient is of order 0.5 to 2, so the
+  standard error is the tell. `LinAlgError` is now translated into an
+  explanation rather than re-raised as linear algebra.
+- EPV is printed on every successful fit, so a thin-but-passable model is
+  visible rather than taken on trust.
+- `scripts/run_pipeline.py`: Stage 1 now says plainly when it is on the sample
+  and that model stages cannot run on it; Stage 4 catches `ModelError` and
+  continues, so a fresh clone still completes the whole run.
+- `tests/test_model.py`: 5 regression tests — EPV refused, EPV computed from the
+  minority class, EPV reported on success, single event refused, perfect
+  separation refused. Suite now 74 green.
+
+### 2026-10-10 — Phase 4: logistic PD model with diagnostics
+- `src/model.py` built: `fit_pd_model`, `predict_pd`, `variance_inflation`,
+  `bootstrap_stability`, `drop_feature`, `model_report`, `save_model` /
+  `load_model`. statsmodels added to requirements (sklearn fits the model but
+  gives no coefficient p-values, which a credit committee asks for first).
+- **The sign check is the headline.** WOE positive = safer and 1 = default, so
+  every slope must be negative. A flipped sign ranks applicants backwards while
+  producing entirely plausible PDs, a plausible score distribution and a
+  plausible points table — there is no symptom. Asserted, not eyeballed, and
+  `test_flipped_woe_sign_is_caught` feeds the model negated WOE and requires it
+  to refuse.
+- Diagnostics: p-values, VIF (computed by hand — it is three lines and worth
+  knowing), and bootstrap sign consistency across 50 resamples.
+- **Selection is iterative and deliberately not automated.** The report names
+  every failing check and says to drop the worst offender and refit. A stepwise
+  routine would hide the reasoning, which is the part a committee wants.
+- `predict_pd` applies saved coefficients directly — no pickles, so the JSON
+  model plus the WOE tables are the whole model and remain scoreable years later.
+  Phase 7's applicant scorer depends on this.
+- First fit on realistic data: all 11 slopes negative, VIF ~1.0 throughout,
+  pseudo R2 0.153, and four features flagged insignificant with two showing
+  unstable signs — a real selection situation to work through.
+- `tests/test_model.py` (new): 19 tests — all-coefficients-negative, flipped
+  sign caught, wrong sign reported when enforcement is off, predictive features
+  significant, noise flagged, VIF = 1 for independent columns, VIF explodes for
+  a near-duplicate, collinear features flagged, bootstrap consistency, PD is a
+  valid probability and matches the bad rate in-sample, safer applicant scores
+  lower, missing columns rejected, target/class/feature/length guards, JSON
+  round trip, drop_feature, report renders. Suite now 69 green.
+- `config.yaml`: `model` block — `p_value_max`, `vif_max`,
+  `bootstrap_resamples`, `enforce_negative_signs`, `model_filename`.
+- `scripts/run_pipeline.py`: Stage 4 fits, prints the coefficient table with
+  diagnostics, and writes `data/processed/pd_model.json`.
+- **Still outstanding:** `notebooks/01_exploration.ipynb` has not been run.
+- **Next:** Phase 5 — validation on the held-out half (KS, Gini/AUC, PSI). This
+  is the first time test data is touched.
 
 ### 2026-10-09 — Phase 3: WOE, Information Value and feature selection
 - `src/woe.py` built: `woe_table`, `information_value`, `iv_band`,

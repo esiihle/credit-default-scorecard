@@ -242,17 +242,128 @@ including the full per-bin tables — a scorecard's WOE table is the artefact a
 model validator reads line by line, and it has to survive outside the process
 that produced it.
 
-## 4. PD model
-**Status: 🟡 skeleton — built in Phase 4.**
+## 4. PD model  *(built 10 Oct 2026)*
 
 Logistic regression on the WOE-transformed features:
 
 $$\ln\!\left(\frac{p}{1-p}\right) = \beta_0 + \sum_{k} \beta_k \,\text{WOE}_k$$
 
-where $p$ is the probability of default. Because inputs are WOE, the model is
-linear in the log-odds — the property that makes §6 possible. Diagnostics:
-coefficient **signs** must be intuitive, **VIF** controls multicollinearity, and
-each variable must be significant and stable.
+where $p$ is the probability of default.
+
+### 4.1 Why this model and not a better-scoring one
+
+Because the inputs are WOE, the model is **linear in the log-odds of default**.
+That one property is what makes §6 possible: a linear score rescales into a
+points table, and a points table is something a customer can be shown, a credit
+committee can sign off and a regulator can audit.
+
+A gradient-boosted model would almost certainly separate better. Phase 8
+benchmarks one for exactly that reason — to **measure** what the
+interpretability costs rather than assert that it is worth it. Reporting that
+number honestly is the deliverable; hiding it would defeat the point.
+
+### 4.2 The sign check is the headline diagnostic
+
+§3 fixed the convention — WOE = ln(%good/%bad), so positive WOE is safer — and
+§1.4 defined 1 = default. Therefore **every slope must be negative**: a more
+good-ish characteristic must lower the log-odds of default.
+
+A positive coefficient means one of two things, and both matter:
+
+1. the relationship reverses once other variables are in the model, which is
+   almost always multicollinearity; or
+2. a sign has been flipped somewhere upstream.
+
+A scorecard with a flipped sign **ranks applicants backwards and still produces
+entirely plausible output** — plausible PDs, a plausible score distribution, a
+plausible points table. There is no symptom. That is why
+`test_all_coefficients_are_negative` asserts it, and why
+`test_flipped_woe_sign_is_caught` feeds the model deliberately negated WOE and
+requires it to refuse.
+
+The intercept is exempt: it carries the base log-odds of the book, which is
+legitimately signed either way depending on the bad rate.
+
+`model.enforce_negative_signs` is left **off** during feature selection so the
+whole diagnostic picture can be read at once, and turned on once the feature set
+has settled, at which point a positive slope stops the run.
+
+### 4.3 Diagnostics, and what each answers
+
+| Check | Setting | The question it answers |
+|---|---|---|
+| Coefficient sign | — | Does the model rank the right way round? |
+| p-value | `model.p_value_max` (0.05) | Could this variable's true effect be zero? |
+| VIF | `model.vif_max` (5.0) | Are two features telling the same story? |
+| Bootstrap sign consistency | `model.bootstrap_resamples` (50) | Is this coefficient a fact about credit risk, or about this sample? |
+
+**VIF** is $1/(1-R^2_k)$, where $R^2_k$ comes from regressing feature $k$ on all
+the others. Under 5 is comfortable; above 10 means the model cannot decide how to
+split the credit between two overlapping variables, so their coefficients swap
+magnitudes — and sometimes signs — on a slightly different sample. WOE reduces
+this but does not remove it. It is computed here by hand rather than imported,
+because it is three lines and worth being able to write on a whiteboard.
+
+**Bootstrap stability** refits on resamples and reports the share of fits in
+which each coefficient keeps its sign. Below 95% is a warning: that variable is
+being fitted to this particular 700 rows.
+
+### 4.4 Selection is iterative, and deliberately not automated
+
+The run reports every failing check and then says: drop the worst offender,
+refit, re-read. `model.drop_feature` supports that loop explicitly.
+
+A stepwise routine would do it faster and hide the thing a credit committee most
+wants to see — *why* each variable is in the final model. On the first fit of the
+real data, four features came back insignificant and two had unstable signs.
+Working through that by hand, and recording the reasoning, is the Phase 4
+deliverable; the coefficient table is just the artefact.
+
+### 4.5 Scoring, and no pickles
+
+`predict_pd` applies the saved coefficients directly rather than keeping a
+statsmodels object alive, so the frozen JSON model plus the WOE tables are the
+*whole* model. A scorecard has to be scoreable years later, and a pickle ties
+that to one library version. Phase 7's applicant scorer depends on this.
+
+### 4.5a Enough data to fit at all: events per variable
+
+The binding constraint on a logistic regression is not the row count, it is the
+number of **events** — here, bads. The long-standing rule of thumb in credit risk
+and biostatistics is at least **10 events per variable (EPV)**; below that,
+standard errors are unreliable and the parameters may not be identified at all.
+`model.min_events_per_variable` enforces it and the figure is printed on every
+fit.
+
+This guard exists because of a real failure. A run against the bundled 24-row
+sample reached Stage 4 with 14 features and 5 bads — EPV 0.36, fifteen
+parameters from sixteen rows. On one library version it raised
+`LinAlgError: Singular matrix`; on another it returned, without complaint,
+coefficients of -21.9 with VIF of 299. **The silent version is the dangerous
+one**, because a coefficient table that merely looks strange still looks like a
+result.
+
+Two degenerate outcomes are now refused explicitly:
+
+| Symptom | What it means |
+|---|---|
+| EPV below the threshold | not enough events to identify the parameters; stop before fitting |
+| Standard errors in the thousands | perfect separation — some feature combination predicts the outcome exactly, so no finite coefficient is best |
+
+Perfect separation deserves its own note, because it does not raise and does not
+produce NaNs: the optimiser simply walks toward infinity, and statsmodels reports
+a coefficient of, say, -13.4 with a standard error of 16,342. On the WOE scale a
+believable coefficient is of order 0.5 to 2, so the standard error is the tell.
+
+Lowering the threshold to make the error go away is the wrong fix, and the error
+message says so.
+
+### 4.6 Trained on train only
+
+The test half is untouched until §5. In-sample PD is reported in the run only as
+a sanity check — a fitted logistic regression is calibrated in-sample almost by
+construction, so a mean predicted PD equal to the observed bad rate says the link
+and intercept are right and says **nothing whatever** about performance.
 
 ## 5. Validation
 **Status: 🟡 skeleton — built in Phase 5.**
