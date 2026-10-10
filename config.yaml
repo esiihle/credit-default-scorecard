@@ -88,6 +88,8 @@ binning:
 woe:
   iv_min: 0.02                  # drop features weaker than this
   iv_leakage_flag: 0.50         # investigate features stronger than this for leakage
+  spec_filename: woe_spec.json  # frozen WOE tables — what a model validator reads
+  woe_matrix_filename: train_woe.csv
 
 # Score scaling (Phase 6) — standard PDO / factor / offset.
 scaling:

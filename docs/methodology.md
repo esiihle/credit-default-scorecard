@@ -161,25 +161,86 @@ values, or no separation), it carries no information. It is left in place and
 dropped in Phase 3 by the IV threshold, rather than deleted here — one place
 decides what enters the model.
 
-## 3. Weight of Evidence & Information Value
-**Status: 🟡 skeleton — built in Phase 3.**
+## 3. WOE / IV & feature selection  *(built 9 Oct 2026)*
 
 ### 3.1 Weight of Evidence
-Each bin is recoded to its log-odds of being good vs. bad:
 
-$$\text{WOE}_b = \ln\!\left(\frac{\%good_b}{\%bad_b}\right)$$
+For each bin *b* of a feature:
 
-WOE puts every feature on one monotonic, model-friendly scale and is what lets a
-logistic model translate cleanly into a points table.
+$$\text{WOE}_b = \ln\!\left(\frac{\%\text{good}_b}{\%\text{bad}_b}\right)$$
+
+where $\%\text{good}_b$ is that bin's share of all good accounts and
+$\%\text{bad}_b$ its share of all bads. In words: how much more, or less,
+good-ish is this bin than the book as a whole.
+
+**Sign convention, fixed once and never flipped: positive WOE = safer.** Because
+Phase 1 defined 1 = default, the logistic coefficients in Phase 4 are therefore
+expected to be **negative**. Phase 4 asserts that rather than assuming it — a
+scorecard that ranks backwards still produces entirely plausible-looking output,
+and this is the cheapest place to catch it.
+
+Why WOE rather than one dummy column per level:
+
+- one column per feature, so the model stays small and stable;
+- monotone in risk by construction, so each coefficient has a single meaning;
+- it maps straight onto the points table in Phase 6, which is what makes the
+  final product explainable to a customer and a regulator.
 
 ### 3.2 Information Value
-Feature-level predictive strength:
 
-$$\text{IV} = \sum_b \left(\%good_b - \%bad_b\right)\,\text{WOE}_b$$
+$$\text{IV} = \sum_b \left(\%\text{good}_b - \%\text{bad}_b\right)\,\text{WOE}_b$$
 
-Selection guide: $<0.02$ drop; $0.02\text{–}0.1$ weak; $0.1\text{–}0.3$ medium;
-$0.3\text{–}0.5$ strong; $>0.5$ **suspiciously strong — check for leakage** before
-trusting it.
+One number per feature. Conventional bands, with the cutoffs in `config.yaml`:
+
+| IV | Reading | Action |
+|---|---|---|
+| < 0.02 | useless | drop (`woe.iv_min`) |
+| 0.02 – 0.1 | weak | keep, expect little |
+| 0.1 – 0.3 | medium | keep |
+| 0.3 – 0.5 | strong | keep |
+| > 0.5 | suspiciously strong | **investigate for leakage** (`woe.iv_leakage_flag`) |
+
+### 3.3 The leakage check
+
+A feature with IV above 0.5 is usually not a brilliant predictor. In a real bank
+build it is usually a field that encodes the outcome — a collections flag, a
+write-off date, a post-default status — and it will evaporate the moment the
+model meets an applicant whose outcome is not yet known.
+
+Such a feature is **flagged, never dropped automatically**. Deciding whether a
+strong predictor is leakage is a judgement about where the field came from and
+when it is populated, and a person has to make it. Automating that decision would
+either silently discard a genuinely good feature or silently keep a fatal one.
+
+### 3.4 Bins with no bads (or no goods)
+
+The logarithm is undefined when a bin holds none of one class. A continuity
+correction of 0.5 is added to both counts of that bin, and the bin is flagged as
+`adjusted` in the table and in the run report. Phase 2's minimum bin size makes
+this rare; when it does fire it is a signal that the bin should probably have
+been merged, not a result to accept quietly.
+
+### 3.5 Bins never seen at fit time
+
+A bin present at scoring time but absent from training — a new product code in
+live data — is given **WOE = 0**, and the count is reported.
+
+The reasoning, which is worth being able to defend: WOE 0 means "this
+characteristic tells us nothing about this applicant", so they receive the
+population-average contribution for it. The alternatives are worse. Assigning the
+worst bin's WOE punishes an applicant for a data gap that is the lender's fault.
+Assigning the best bin's WOE is exploitable by anyone who discovers which values
+fall outside the training set. The honest cost of 0 is that a genuinely risky
+unseen level is scored as neutral, which is precisely why the count is surfaced
+and belongs on a monitoring report.
+
+### 3.6 Fitted on train only
+
+WOE reads the target, so like binning it is fitted on the training half and
+applied unchanged to test. The spec is frozen to `data/processed/woe_spec.json`,
+including the full per-bin tables — a scorecard's WOE table is the artefact a
+model validator reads line by line, and it has to survive outside the process
+that produced it.
 
 ## 4. PD model
 **Status: 🟡 skeleton — built in Phase 4.**

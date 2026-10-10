@@ -5,7 +5,7 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 2 — Binning / monotonic classing (Oct 12 – Oct 18), started early
+**Current phase:** Phase 3 — WOE / IV & feature selection (Oct 19 – Oct 25), started early
 **Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
 tests green (7); exploration notebook written and run.
 **Next action:** Run the exploration notebook and fill in its findings table
@@ -48,7 +48,7 @@ python scripts/run_pipeline.py     # real data from data/raw if present, else th
 python scripts/run_pipeline.py --sample   # force the committed sample
 python scripts/make_sample.py      # rebuild the committed sample from the real file
 python app/scorer.py               # placeholder until Phase 7
-pytest                             # 33 tests (smoke + Phases 1-2), all green
+pytest                             # 50 tests (smoke + Phases 1-3), all green
 python scripts/run_pipeline.py --no-save  # run the checks without writing splits
 # notebooks/01_exploration.ipynb   # open in VS Code, Run All
 ```
@@ -56,6 +56,34 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-09 — Phase 3: WOE, Information Value and feature selection
+- `src/woe.py` built: `woe_table`, `information_value`, `iv_band`,
+  `compute_woe_iv`, `selected_features`, `apply_woe`, `iv_ranking`,
+  `woe_report`, `save_spec` / `load_spec`.
+- **Sign convention fixed and documented:** WOE = ln(%good / %bad), positive =
+  safer. With 1 = default, Phase 4's logistic coefficients must therefore come
+  out negative — Phase 4 will assert that rather than assume it.
+- **Leakage policy:** IV >= 0.5 is flagged for a human, never auto-dropped.
+  Deciding a strong predictor is leakage is a judgement about where the field
+  came from, not something to automate.
+- **Unseen bins score WOE 0** (population-average contribution), with the count
+  reported — the answer to the open question from Phase 2. Worst-bin WOE punishes
+  an applicant for the lender's data gap; best-bin WOE is exploitable.
+- Zero-cell bins get a 0.5 continuity correction and are flagged as `adjusted`.
+- Fitted on train only; spec frozen to `data/processed/woe_spec.json` with the
+  full per-bin tables, because that table is what a model validator reads.
+- `tests/test_woe.py` (new): 17 tests, including **two hand-computed anchors** —
+  a WOE worked out on paper (ln 3 and ln 0.5) and an IV (0.7167) — plus sign
+  convention, WOE ordering mirrors bad-rate ordering, noise dropped, leakage
+  flagged not dropped, IV bands, zero-cell finiteness, single-bin feature,
+  target required, unseen bin neutral and counted, no spec change from test data,
+  JSON round trip, and an end-to-end check against the Phase 2 binner.
+- Phase 0 smoke test updated; suite now 50 green.
+- **Still outstanding:** `notebooks/01_exploration.ipynb` has not been run. Its
+  hand-computed IV for `checking_status` is the number this stage should
+  reproduce — worth doing before Phase 4.
+- **Next:** Phase 4 — logistic PD model on the WOE matrix.
 
 ### 2026-10-05 — Phase 2: binning and monotonic coarse classing
 - `src/binning.py` built: quantile fine-classing, then adjacent-pair merging

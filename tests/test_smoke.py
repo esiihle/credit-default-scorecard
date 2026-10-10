@@ -57,10 +57,10 @@ def test_downstream_stages_declared_but_pending():
     """Every stage NOT YET BUILT exists and cleanly signals 'not built yet'.
 
     Stages drop off this list as they are implemented: binning left it in
-    Phase 2 (5 Oct 2026) and is now covered by tests/test_binning.py.
+    Phase 2 (5 Oct 2026) and WOE in Phase 3 (9 Oct 2026); both now have their
+    own test modules.
     """
     for call in (
-        lambda: woe.compute_woe_iv(None),
         lambda: model.fit_pd_model(None),
         lambda: validate.evaluate(None),
         lambda: scaling.build_scorecard(None),

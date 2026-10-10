@@ -129,11 +129,29 @@ def main():
         spec_path = binning.save_spec(spec, config)
         print(f"\n  binning spec written to: {spec_path}")
 
+    # --- Phase 3: WOE / IV, fitted on TRAIN ONLY -----------------------------
+    print()
+    print("Stage 3 — WOE / Information Value")
+    bin_order = {f: binning.spec_bin_order(d) for f, d in spec["features"].items()}
+    woe_spec = woe.compute_woe_iv(train_binned, train["is_default"], config,
+                                  bin_order=bin_order)
+    print(woe.woe_report(woe_spec))
+
+    chosen = woe.selected_features(woe_spec)
+    train_woe, unseen_train = woe.apply_woe(train_binned, woe_spec, chosen)
+    test_woe, unseen_test = woe.apply_woe(test_binned, woe_spec, chosen)
+
+    if unseen_test:
+        print(f"\n  bins in test with no fitted WOE (scored neutral): {unseen_test}")
+
+    if not args.no_save:
+        woe_path = woe.save_spec(woe_spec, config)
+        print(f"\n  WOE spec written to: {woe_path}")
+
     # --- Downstream stages (progressively implemented) ---
     print()
     print("Downstream stages:")
-    woe_feats = _run_stage("Stage 3 — WOE / IV", woe.compute_woe_iv, train_binned, config)
-    pd_model = _run_stage("Stage 4 — PD model", model.fit_pd_model, woe_feats, config)
+    pd_model = _run_stage("Stage 4 — PD model", model.fit_pd_model, train_woe, config)
     _run_stage("Stage 5 — Validation", validate.evaluate, pd_model, config)
     _run_stage("Stage 6 — Score scaling", scaling.build_scorecard, pd_model, config)
     _run_stage("Stage 8 — Benchmark", benchmark.run_benchmark, df, config)
