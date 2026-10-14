@@ -110,6 +110,18 @@ model:
   enforce_negative_signs: false
   model_filename: pd_model.json
 
+# --- Phase 5: validation on the held-out set ----------------------------------
+# These are acceptance thresholds, not tuning knobs. Nothing in the validation
+# report may be used to choose a feature, a threshold or a hyperparameter — the
+# moment it is, the test set becomes training data.
+validation:
+  score_bands: 10              # deciles for calibration and rank ordering
+  psi_bands: 10
+  min_gini: 0.30               # below this the model does not discriminate enough
+  max_psi: 0.25               # above this the score distribution is not stable
+  max_gini_drop: 0.15         # train -> test drop larger than this = overfitting
+  report_filename: validation.json
+
 # Score scaling (Phase 6) — standard PDO / factor / offset.
 scaling:
   pdo: 20                       # points to double the good:bad odds

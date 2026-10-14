@@ -365,17 +365,120 @@ a sanity check — a fitted logistic regression is calibrated in-sample almost b
 construction, so a mean predicted PD equal to the observed bad rate says the link
 and intercept are right and says **nothing whatever** about performance.
 
-## 5. Validation
-**Status: 🟡 skeleton — built in Phase 5.**
+## 5. Validation  *(built 13 Oct 2026)*
 
-- **KS statistic** — maximum gap between the cumulative good and bad score
-  distributions: $\text{KS} = \max_s \left| F_{good}(s) - F_{bad}(s) \right|$.
-- **Gini / AUC** — rank-ordering power, with $\text{Gini} = 2\,\text{AUC} - 1$.
-- **Calibration** — predicted PD vs. realised default rate (reliability curve).
-- **PSI (Population Stability Index)** — drift between development and validation:
-  $\text{PSI} = \sum_b (\%A_b - \%E_b)\,\ln(\%A_b / \%E_b)$, read with the usual
-  $<0.1$ stable / $0.1\text{–}0.25$ shift / $>0.25$ major-shift bands.
-- **Rank-ordering** — monotonic bad rate across score bands.
+**This is the first stage that touches the test set.** Everything before it —
+binning, WOE, selection, the logistic fit — saw only the training half of the
+frozen split. These numbers are therefore the first honest statement about the
+model, and they get exactly one chance to be honest: every time a modelling
+decision is changed in response to a test number, the test set becomes a little
+more like training data.
+
+### 5.1 Three questions, not one
+
+A committee asks three separate things, and a model can pass any one while
+failing the others:
+
+| Question | Metrics | What failing it means |
+|---|---|---|
+| **Discrimination** — does it separate good from bad? | KS, Gini / AUC | the model has no signal |
+| **Calibration** — are the PDs right in *level*? | reliability by decile, Hosmer-Lemeshow | the ranking is fine, the pricing is wrong |
+| **Stability** — does it hold up out of sample? | PSI | it works on this sample and not the next |
+
+Reporting AUC alone — the common shortcut — answers one question in three.
+
+### 5.2 KS
+
+$$\text{KS} = \max_s \big| F_{\text{bad}}(s) - F_{\text{good}}(s) \big|$$
+
+At the best cut-off, how many more percentage points of bads can you reject than
+of goods. The report prints that cut-off in business terms — *rejects X% of bads
+and Y% of goods, which is Z% of the book* — because that is the sentence a credit
+committee actually discusses.
+
+Bands for an application scorecard: below 0.20 weak, 0.20–0.40 usual, above 0.50
+unusually good, above 0.70 a reason to look for leakage rather than celebrate.
+
+### 5.3 Gini and AUC
+
+AUC is the probability a randomly chosen bad scores riskier than a randomly
+chosen good; $\text{Gini} = 2\,\text{AUC} - 1$. Computed from average ranks via
+the Mann-Whitney identity, which is exact and handles **ties** correctly. Ties
+matter: once a scorecard rounds to whole points they are everywhere, and
+ignoring them inflates AUC.
+
+**The key limitation, worth stating in an interview:** AUC depends only on the
+*order* of the scores, so it is invariant to any strictly monotonic transform.
+Shift every prediction in log-odds space and AUC does not move by a single
+decimal while every PD becomes badly too high.
+`test_auc_is_blind_to_a_level_error_but_calibration_is_not` demonstrates exactly
+that. It is the reason calibration is a separate section rather than a footnote.
+
+### 5.4 Calibration
+
+Predicted PD against realised default rate by decile of predicted risk — the
+credit version of a reliability diagram. Each band's gap is judged against its
+own **binomial standard error**, $\sqrt{p(1-p)/n}$, rather than a flat
+tolerance, because a 30-account band is noisy and a 3,000-account band is not.
+
+The **Hosmer-Lemeshow** chi-square summarises it:
+
+$$\chi^2 = \sum_b \frac{(O_b - E_b)^2}{E_b\,(1 - E_b/n_b)}$$
+
+Two things about it are routinely misread, so the report says both out loud:
+
+* a **low** p-value means **poor** calibration — the opposite direction to most
+  tests;
+* the test is weak on small samples, so it is printed *beside* the band table,
+  never instead of it.
+
+### 5.5 PSI
+
+$$\text{PSI} = \sum_b (\%A_b - \%E_b)\,\ln(\%A_b / \%E_b)$$
+
+Bands are cut on the **development** sample and then applied to the validation
+one. That ordering is the entire mechanism: re-cutting bands on the validation
+sample would make any two distributions look identical, because each would hold
+10% of itself in each of its own deciles.
+`test_psi_bands_are_cut_on_the_expected_sample` pins it.
+
+Reading: below 0.10 stable, 0.10–0.25 a shift worth monitoring, above 0.25 a
+major shift that normally triggers a redevelopment discussion. Per-band
+contributions are reported too, so a single drifting characteristic can be
+identified rather than just a total.
+
+### 5.6 Rank ordering
+
+Bad rate across score bands, ordered lowest score to highest. It must move in one
+direction. This is the check a committee does by eye before looking at any
+statistic, and the one that sinks a model fastest: *"band 6 is riskier than band
+7"* has no defensible business meaning, whatever the AUC says, so cut-off policy
+cannot be built on it. The report names the bands where it reverses rather than
+only pronouncing a verdict.
+
+### 5.7 Train numbers are reported only as a comparison
+
+A large **train-to-test Gini drop** is the signature of overfitting, and that
+comparison is the only reason the training figures are computed here. The first
+real run made the point immediately:
+
+```
+Gini (train)              0.5100
+Gini (test)               0.1886
+Gini drop train->test     0.3214   (limit 0.15)
+```
+
+The model learned the training sample, not the problem. The honest response is to
+go back to the **training-set** work — fewer features, heavier binning, a
+stricter IV floor — and *not* to adjust anything in response to the test number.
+
+### 5.8 What is deliberately not done
+
+No threshold is tuned, no feature dropped, no hyperparameter chosen on these
+numbers. If the report is disappointing, the two honest responses are to revisit
+the training work or to report the result as it stands. That distinction is the
+difference between validation and a second training run, and the report ends with
+that reminder printed, every time.
 
 ## 6. Score scaling
 **Status: 🟡 skeleton — built in Phase 6.**

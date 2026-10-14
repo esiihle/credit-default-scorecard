@@ -186,10 +186,31 @@ def main():
             pd_path = model.save_model(pd_model, config)
             print(f"\n  PD model written to: {pd_path}")
 
+    # --- Phase 5: validation on the HELD-OUT test set ------------------------
+    # The first and only point at which test data is used. Nothing here may
+    # feed back into a modelling decision.
+    print()
+    print("Stage 5 — Validation (held-out test set)")
+    if pd_model is None:
+        print("  SKIPPED — there is no fitted PD model to validate.")
+    else:
+        train_pd = model.predict_pd(pd_model, train_woe)
+        test_pd = model.predict_pd(pd_model, test_woe)
+
+        try:
+            validation = validate.evaluate(
+                train_pd, train["is_default"], test_pd, test["is_default"], config)
+            print(validate.validation_report(validation))
+
+            if not args.no_save:
+                report_path = validate.save_report(validation, config)
+                print(f"\n  validation report written to: {report_path}")
+        except validate.ValidationError as error:
+            print(f"  CANNOT VALIDATE: {error}")
+
     # --- Downstream stages (progressively implemented) ---
     print()
     print("Downstream stages:")
-    _run_stage("Stage 5 — Validation", validate.evaluate, pd_model, config)
     _run_stage("Stage 6 — Score scaling", scaling.build_scorecard, pd_model, config)
     _run_stage("Stage 8 — Benchmark", benchmark.run_benchmark, df, config)
 

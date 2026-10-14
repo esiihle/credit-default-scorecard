@@ -5,7 +5,7 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 4 — Logistic PD model (Oct 26 – Nov 1), started early
+**Current phase:** Phase 5 — Validation (Nov 2 – Nov 8), started early
 **Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
 tests green (7); exploration notebook written and run.
 **Next action:** Run the exploration notebook and fill in its findings table
@@ -48,7 +48,7 @@ python scripts/run_pipeline.py     # real data from data/raw if present, else th
 python scripts/run_pipeline.py --sample   # force the committed sample
 python scripts/make_sample.py      # rebuild the committed sample from the real file
 python app/scorer.py               # placeholder until Phase 7
-pytest                             # 74 tests (smoke + Phases 1-4), all green
+pytest                             # 99 tests (smoke + Phases 1-5), all green
 python scripts/run_pipeline.py --no-save  # run the checks without writing splits
 # notebooks/01_exploration.ipynb   # open in VS Code, Run All
 ```
@@ -56,6 +56,43 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-13 — Phase 5: validation on the held-out set
+- `src/validate.py` built: `ks_statistic`, `auc_and_gini`, `roc_curve_points`,
+  `calibration_by_band`, `hosmer_lemeshow`, `population_stability_index`,
+  `psi_verdict`, `rank_ordering`, `evaluate`, `validation_report`, `save_report`.
+- **First stage to touch the test set.** The report ends with a printed reminder
+  that nothing in it may be used to choose a feature, threshold or
+  hyperparameter — doing so turns the test set into training data.
+- **The first run immediately caught overfitting:** train Gini 0.51, test Gini
+  0.19, a drop of 0.32 against a 0.15 limit. Rank ordering was not monotonic
+  (reversals at bands 2, 6, 7) and Hosmer-Lemeshow rejected calibration. Exactly
+  what this phase is for, on the first attempt.
+- AUC computed from average ranks via Mann-Whitney, so **ties are handled** —
+  they are everywhere once a scorecard rounds to points, and ignoring them
+  inflates AUC.
+- **A test-design bug worth recording.** To show that AUC is blind to a level
+  error I first used `clip(pd * 2, 0, 0.999)` — but clipping ties every
+  high-risk account at the ceiling, destroys real ranking information and moved
+  AUC from 0.820 to 0.804. AUC is invariant to *strictly* monotonic transforms
+  only; the test now uses a log-odds shift and AUC is unchanged to 1e-9.
+- Calibration gaps judged against each band's own binomial standard error, not a
+  flat tolerance. Hosmer-Lemeshow's direction (low p = poor calibration) is
+  stated in the output because it is routinely misread.
+- PSI bands cut on the DEVELOPMENT sample and applied to validation — re-cutting
+  on validation would make any two distributions look identical.
+  `test_psi_bands_are_cut_on_the_expected_sample` pins it.
+- `tests/test_validate.py` (new): 25 tests — perfect/reversed/random AUC, ties,
+  the Gini identity, KS by hand, KS on a useless model, calibration tracking
+  reality, **AUC blind to level error while calibration is not**, Hosmer-Lemeshow
+  both directions, PSI ~0 on same-distribution and >0.25 on shifted, PSI band
+  ordering, empty-band survival, rank ordering monotonic and reversal detection,
+  the full report, the Gini-drop flag, a non-discriminating model failing,
+  single-class refusal, JSON round trip. Suite now 99 green.
+- `config.yaml`: `validation` block — `score_bands`, `psi_bands`, `min_gini`,
+  `max_psi`, `max_gini_drop`, `report_filename`. Noted in the file as acceptance
+  thresholds, not tuning knobs.
+- **Next:** Phase 6 — score scaling (PDO / factor / offset) into a points table.
 
 ### 2026-10-10 (later) — Phase 4 hardening: events-per-variable guard
 - A real run against the bundled 24-row sample crashed Stage 4 with
