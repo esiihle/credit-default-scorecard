@@ -208,10 +208,38 @@ def main():
         except validate.ValidationError as error:
             print(f"  CANNOT VALIDATE: {error}")
 
+    # --- Phase 6: score scaling into the points table ------------------------
+    print()
+    print("Stage 6 — Score scaling (points table)")
+    if pd_model is None:
+        print("  SKIPPED — there is no fitted PD model to scale.")
+    else:
+        scale_cfg = config.get("scaling", {})
+        scorecard = scaling.build_points_table(
+            pd_model, woe_spec, config,
+            round_points=bool(scale_cfg.get("round_points", True)))
+
+        # The table must reproduce the model it came from, or it is a
+        # plausible-looking object that represents nothing.
+        verification = scaling.verify_against_model(
+            train_binned, train_woe, pd_model, scorecard,
+            points_per_feature=float(scale_cfg.get(
+                "verification_tolerance_per_feature", 0.5)))
+
+        # Cut-off options are computed on the HELD-OUT half: a policy choice has
+        # to be made on data the model has not seen.
+        test_scores, _ = scaling.score_applicants(test_binned, scorecard)
+        cutoffs = scaling.cutoff_table(test_scores, test["is_default"], scorecard)
+
+        print(scaling.scorecard_report(scorecard, verification, cutoffs))
+
+        if not args.no_save:
+            card_path = scaling.save_scorecard(scorecard, config)
+            print(f"\n  points table written to: {card_path}")
+
     # --- Downstream stages (progressively implemented) ---
     print()
     print("Downstream stages:")
-    _run_stage("Stage 6 — Score scaling", scaling.build_scorecard, pd_model, config)
     _run_stage("Stage 8 — Benchmark", benchmark.run_benchmark, df, config)
 
     print("\nPhase 0 complete: pipeline runs end-to-end and reports stage status.")

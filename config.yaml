@@ -124,9 +124,23 @@ validation:
 
 # Score scaling (Phase 6) — standard PDO / factor / offset.
 scaling:
-  pdo: 20                       # points to double the good:bad odds
+  # PDO = "points to double the odds". With 20, gaining 20 points doubles the
+  # good:bad odds — the one sentence that explains a scorecard to someone who
+  # will never see a logistic regression.
+  pdo: 20
   base_score: 600              # score at the reference odds
   base_odds: 50                # good:bad odds at the base score
+
+  # Round points to whole numbers, as a real scorecard does. The rounding error
+  # is measured against the model rather than assumed (see
+  # scaling.verify_against_model).
+  round_points: true
+  # Admissible disagreement between the points table and the model, PER
+  # CHARACTERISTIC. Each characteristic's points round independently, so each
+  # contributes at most half a point — a fixed total would fail a card with many
+  # characteristics and pass a broken one with few.
+  verification_tolerance_per_feature: 0.5
+  scorecard_filename: scorecard.json
 
 logging:
   level: INFO

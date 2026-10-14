@@ -5,7 +5,7 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 5 — Validation (Nov 2 – Nov 8), started early
+**Current phase:** Phase 6 — Score scaling & points table (Nov 9 – Nov 15), started early
 **Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
 tests green (7); exploration notebook written and run.
 **Next action:** Run the exploration notebook and fill in its findings table
@@ -48,7 +48,7 @@ python scripts/run_pipeline.py     # real data from data/raw if present, else th
 python scripts/run_pipeline.py --sample   # force the committed sample
 python scripts/make_sample.py      # rebuild the committed sample from the real file
 python app/scorer.py               # placeholder until Phase 7
-pytest                             # 99 tests (smoke + Phases 1-5), all green
+pytest                             # 124 tests (smoke + Phases 1-6), all green
 python scripts/run_pipeline.py --no-save  # run the checks without writing splits
 # notebooks/01_exploration.ipynb   # open in VS Code, Run All
 ```
@@ -56,6 +56,52 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-14 — Phase 6: score scaling and the points table
+- `src/scaling.py` built: `scaling_constants`, `score_to_odds` / `odds_to_score`,
+  `score_to_pd` / `pd_to_score`, `build_points_table`, `score_applicants`,
+  `verify_against_model`, `rounding_tolerance`, `cutoff_table`,
+  `scorecard_report`, `save_scorecard` / `load_scorecard`.
+- **The points table is the scorecard.** Scoring is now a lookup and an
+  addition — a clerk with the printed table and a calculator gets the same
+  answer as the pipeline.
+- Verified against the model: unrounded the table must agree to floating-point
+  precision, because it is an algebraic rearrangement, not an approximation.
+  First real run: largest disagreement 2.277 points, mean 0.792, across 700
+  applicants and 11 characteristics.
+
+#### A design error found by the first real run
+The verification tolerance was a **fixed** 1.0 points, and it failed an
+eleven-characteristic card at 2.277 — a card that was entirely correct. Rounding
+error is bounded by half a point PER CHARACTERISTIC, so the admissible total
+grows with the card: one number either fails good tables or passes broken ones.
+The setting is now `verification_tolerance_per_feature: 0.5` and
+`rounding_tolerance()` turns it into a total.
+`test_tolerance_scales_with_the_number_of_characteristics` pins it.
+
+#### A second finding: the reference point has to be reachable
+With a two-characteristic test fixture the attainable range came out 460-552
+while `base_score` was 600 — a score no applicant could reach. The subtlety:
+**raising base_score does not fix it.** The offset moves with it, so the whole
+range shifts by the same amount and the gap is invariant (measured at 600, 500
+and 520 — identical gap). `base_odds` is the lever: 50:1 asserts a reference PD
+of 1.96%, and if the model never gets that low the anchor is outside the
+population. The report now states both PD ranges and names the fix.
+- Unseen bins score the characteristic's MEAN points, not zero: zero is not
+  neutral on this scale because the offset is baked into every cell.
+- `cutoff_table` computed on the HELD-OUT half, reporting approval rate,
+  approved bad rate, and BOTH sides of the trade-off (bads rejected and goods
+  rejected) — a cut-off that rejects most bads by rejecting most of everyone is
+  not a policy.
+- `tests/test_scaling.py` (new): 22 tests — factor identity, base anchor,
+  **PDO doubling the odds at four score levels**, score/PD round trip, higher
+  score = lower PD, every bin covered, safer bins earning more points,
+  **the table reproducing the model exactly when unrounded**, rounding error
+  bounded, tampered table refused, tolerance scaling, base-score trap,
+  base_odds as the real lever, lookup-and-addition, reason-code material,
+  unseen bin handling, cut-off trade-off, JSON round trip. Suite now 124 green.
+- **Next:** Phase 7 — the interactive applicant scorer with reason codes, built
+  on the per-characteristic contributions this phase produces.
 
 ### 2026-10-13 — Phase 5: validation on the held-out set
 - `src/validate.py` built: `ks_statistic`, `auc_and_gini`, `roc_curve_points`,

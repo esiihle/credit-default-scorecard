@@ -480,21 +480,122 @@ the training work or to report the result as it stands. That distinction is the
 difference between validation and a second training run, and the report ends with
 that reminder printed, every time.
 
-## 6. Score scaling
-**Status: 🟡 skeleton — built in Phase 6.**
+## 6. Score scaling  *(built 14 Oct 2026)*
 
-Model log-odds are mapped to a human-readable score with the standard
-**PDO / factor / offset** transform:
+The points table **is** the scorecard. Everything before this was the machinery
+that produced it.
 
-$$\text{Score} = \text{Offset} + \text{Factor}\times \ln(\text{odds}),
-\qquad \text{Factor} = \frac{\text{PDO}}{\ln 2}$$
+### 6.1 The transform
 
-where **PDO** is the points needed to double the odds. Distributing across the $n$
-model variables gives the **points per bin**:
+$$\text{Score} = \text{Offset} + \text{Factor}\times\ln(\text{odds}_{\text{good:bad}})$$
 
-$$\text{Points}_k = -\left(\beta_k \,\text{WOE}_k + \frac{\beta_0}{n}\right)\times \text{Factor} + \frac{\text{Offset}}{n}$$
+$$\text{Factor} = \frac{\text{PDO}}{\ln 2}, \qquad
+\text{Offset} = \text{BaseScore} - \text{Factor}\times\ln(\text{BaseOdds})$$
 
-The full set of per-bin points **is the scorecard**.
+**PDO** is "points to double the odds". With `pdo = 20`, gaining 20 points
+doubles the good:bad odds — the one sentence that explains a scorecard to someone
+who will never see a logistic regression, and the entire reason for this scaling
+rather than reporting the PD directly. `test_pdo_doubles_the_odds` checks it at
+four different score levels.
+
+### 6.2 Points per bin
+
+Because the model is linear in the log-odds and the inputs are WOE, the score
+decomposes into one additive contribution per characteristic:
+
+$$\text{Points}_k = -\Big(\beta_k\,\text{WOE}_k + \frac{\beta_0}{n}\Big)
+                      \times \text{Factor} + \frac{\text{Offset}}{n}$$
+
+The intercept and offset are split evenly across the $n$ variables. That is a
+*presentational* choice — it makes every characteristic's points comparable and
+the total come out right — and nothing in the model depends on it.
+
+Scoring an applicant is then a **lookup and an addition**. A clerk with the
+printed table and a calculator gets the same answer as the pipeline, which is
+what "explainable" actually means in practice.
+
+### 6.3 The sign chain, end to end
+
+| Phase | Convention |
+|---|---|
+| 1 | 1 = default |
+| 3 | WOE positive = safer |
+| 4 | therefore coefficients negative |
+| 6 | $-\beta_k\text{WOE}_k > 0$ for a safer bin → **more points** |
+
+So **higher score = safer applicant**, the universal convention and the opposite
+direction to the PD. If any link were flipped the scorecard would rank backwards
+while producing a perfectly plausible points table.
+`test_higher_score_means_lower_pd` and `test_safer_bins_earn_more_points` are the
+end-to-end checks.
+
+### 6.4 Verification: the table must reproduce the model
+
+A points table is worth nothing unless it reproduces the model it came from.
+`verify_against_model` scores every applicant both ways — through the table and
+through the logistic model — and reports the largest disagreement.
+
+**Unrounded it must be zero to floating-point precision**, because the table is
+an algebraic rearrangement of the model, not an approximation. Rounding to whole
+points, as a real scorecard does, introduces a bounded error: each
+characteristic rounds independently, so each contributes at most half a point.
+
+**The tolerance therefore scales with the number of characteristics**, and a
+fixed one is a design error. The first real run failed an eleven-characteristic
+card at 2.277 points against a flat 1.0 limit — a table that was entirely
+correct. `verification_tolerance_per_feature` (0.5) is the right form of the
+setting; `rounding_tolerance` turns it into a total.
+
+`test_verification_fails_loudly_on_a_tampered_table` adds 60 points to one cell
+and requires the check to refuse the table.
+
+### 6.5 The reference point has to be reachable
+
+`base_odds = 50` asserts a reference applicant with a PD of $1/51 = 1.96\%$. If
+the model never produces a PD that low, the scale is anchored at a
+creditworthiness nobody in the population has. The ranking is unaffected — the
+scaling is linear — but every score reads oddly against the stated reference, and
+a committee will ask on sight.
+
+**The subtlety: raising `base_score` does not fix it.** The offset moves with it,
+so every point moves with it, so the attainable range shifts by exactly the same
+amount and the gap is invariant.
+`test_raising_the_base_score_does_not_fix_an_unreachable_reference` measures that
+the gap is identical at base scores of 600, 500 and 520.
+
+**`base_odds` is the lever.** Lowering it into the PD range the model actually
+spans is the fix, and the report states both ranges so the warning can be acted
+on rather than merely noted.
+
+### 6.6 Unseen bins score the characteristic's mean, not zero
+
+Zero is not neutral on this scale — the offset is baked into every cell — so zero
+points would be a severe and arbitrary penalty for a data gap that is the
+lender's fault. An unseen bin receives the characteristic's mean points.
+
+### 6.7 Cut-off options
+
+The table a credit committee actually decides on, computed on the **held-out**
+half because a policy choice must be made on data the model has not seen. Each
+row is a policy option:
+
+| cut-off | approval rate | approved bad rate | bads rejected | goods rejected |
+|---|---|---|---|---|
+| 472 | 95.0% | 29.1% | 5.7% | 4.7% |
+| 514 | 56.0% | 23.2% | 55.7% | 39.2% |
+| 552 | 15.3% | 15.2% | 92.0% | 81.6% |
+
+Read as: *declining below 514 approves 56% of applicants, the approved book runs
+a 23.2% bad rate, and we keep out 55.7% of the bads at the cost of turning away
+39.2% of the goods.* Both sides of that trade-off are reported, because a
+cut-off that rejects most of the bads by rejecting most of everyone is not a
+policy.
+
+### 6.8 The frozen artefact
+
+`data/processed/scorecard.json` — the points table plus the scaling constants, as
+plain JSON. A scorecard has to be scoreable by hand, years later, with no code at
+all. That is why nothing in this pipeline is pickled.
 
 ## 7. Interactive scorer & reason codes
 **Status: 🟡 skeleton — built in Phase 7.**

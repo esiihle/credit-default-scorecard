@@ -58,10 +58,10 @@ def test_downstream_stages_declared_but_pending():
 
     Stages drop off this list as they are implemented: binning left it in
     Phase 2 (5 Oct), WOE in Phase 3 (9 Oct), the PD model in Phase 4 (10 Oct)
-    and validation in Phase 5 (13 Oct); each now has its own test module.
+    validation in Phase 5 (13 Oct)
+    and score scaling in Phase 6 (14 Oct); each now has its own test module.
     """
     for call in (
-        lambda: scaling.build_scorecard(None),
         lambda: scorecard.score_applicant(None),
         lambda: benchmark.run_benchmark(None),
     ):
