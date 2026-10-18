@@ -5,7 +5,7 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 6 — Score scaling & points table (Nov 9 – Nov 15), started early
+**Current phase:** Phase 7 — Interactive scorer + benchmark (Nov 16 – Nov 22), started early
 **Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
 tests green (7); exploration notebook written and run.
 **Next action:** Run the exploration notebook and fill in its findings table
@@ -24,9 +24,13 @@ split manifest.
 - [x] **Good/bad definition:** done 2 Oct 2026 — 1 = default (source code 2),
       0 = good. Documented in methodology §1.4 with its three limitations
       (no delinquency depth, accepted-applicants only, direction consistency).
-- [ ] **`personal_status_sex`:** encodes sex, a protected attribute. Decide in
-      Phase 3 whether it enters the model, and record the reasoning — a panel
-      will ask.
+- [x] **`personal_status_sex`:** RESOLVED 18 Oct 2026, and not by choice —
+      Phase 7 forced it. The characteristic appeared as reason code 4 on a live
+      explanation ("you are in 'female: divorced / separated / married', which
+      costs 18 points"), i.e. an adverse-action notice citing SEX. The scorer now
+      refuses to emit it (`fair_lending.on_protected_reason_code: refuse`).
+      **STILL TO DO:** remove it from `schema.categorical_columns` and refit from
+      Phase 2, because suppressing the notice does not make the model lawful.
 
 ## Phase checklist
 - [x] Documentation (OVERVIEW, README, ROADMAP, methodology, LICENSE, .gitignore)
@@ -48,7 +52,7 @@ python scripts/run_pipeline.py     # real data from data/raw if present, else th
 python scripts/run_pipeline.py --sample   # force the committed sample
 python scripts/make_sample.py      # rebuild the committed sample from the real file
 python app/scorer.py               # placeholder until Phase 7
-pytest                             # 124 tests (smoke + Phases 1-6), all green
+pytest                             # 147 tests (smoke + Phases 1-7), all green
 python scripts/run_pipeline.py --no-save  # run the checks without writing splits
 # notebooks/01_exploration.ipynb   # open in VS Code, Run All
 ```
@@ -56,6 +60,56 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-18 — Phase 7: applicant scorer and reason codes
+- `src/scorecard.py` built: `applicant_to_frame`, `score_applicant`,
+  `reason_codes`, `decision`, `explain`, `score_many`. `app/scorer.py` built as
+  a real CLI with four modes — interactive prompts, three generated example
+  applicants, batch from CSV, and printing the points table — plus `--cutoff`
+  for an approve/decline decision.
+- Reason codes are read **directly off the arithmetic that produced the
+  decision**: the sum of the points IS the score, so the characteristic that
+  cost the most points IS the reason. No surrogate model, no SHAP.
+- Measured as **points lost against the best available bin**, not against the
+  mean. Against the mean, an applicant slightly below average on a strong
+  characteristic would be told about that instead of where they actually lost 40
+  points.
+- The scorer runs on the frozen JSON artefacts alone — no training data, no
+  model object, no pipeline. `test_scorer_works_from_frozen_artefacts_alone`.
+
+#### A fair-lending finding that stopped the phase
+Running on real German Credit produced this as reason code 4:
+```
+4. personal_status_sex: you are in 'female: divorced / separated / married',
+   which costs 18 points against the best available ('male: divorced / separated')
+```
+That is an adverse-action notice telling an applicant their **sex** counted
+against them — unlawful under ECOA / Regulation B, and under the NCA and Equality
+Act in South Africa. **The code was working perfectly**; the model contains a
+protected characteristic, flagged as an open decision in Phase 3 and never
+resolved. Phase 7 is where deferring it stopped being possible, because this is
+the phase that puts the model's reasoning in front of the applicant.
+- Added `fair_lending` config and a guard: `refuse` (default) raises
+  `FairLendingError`; `warn` suppresses the code but keeps warning that the model
+  is not fit for lending use. The error states plainly that suppressing the
+  notice does NOT make the model lawful and names the real fix.
+- The CLI reports the refusal as a readable message with a non-zero exit code,
+  not a traceback.
+- **ACTION STILL OPEN:** remove `personal_status_sex` from
+  `schema.categorical_columns`, refit from Phase 2, and re-validate. Until then
+  the model is diagnostic only.
+- `tests/test_scorecard.py` (new): 23 tests — scoring with PD and breakdown,
+  score equals the sum of the breakdown, safer applicant scores higher,
+  incomplete and fully blank applications scoreable, unknown attribute refused,
+  determinism, **reason codes naming the costliest characteristic**, **no reason
+  codes for a best-everywhere applicant**, capping, trivia suppressed, every code
+  carrying what the applicant needs, decisions either side of a cut-off, reasons
+  only on a decline, readable explanation, batch matching single scoring, and
+  four fair-lending tests. Suite now 147 green.
+- **Next:** Phase 7's second deliverable — the gradient-boosted benchmark, to
+  quantify what the interpretability costs. Then Phase 8 (docs and
+  presentation). Both should wait until `personal_status_sex` is removed, so the
+  benchmark compares a lawful scorecard rather than this one.
 
 ### 2026-10-14 — Phase 6: score scaling and the points table
 - `src/scaling.py` built: `scaling_constants`, `score_to_odds` / `odds_to_score`,

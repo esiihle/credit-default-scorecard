@@ -62,7 +62,6 @@ def test_downstream_stages_declared_but_pending():
     and score scaling in Phase 6 (14 Oct); each now has its own test module.
     """
     for call in (
-        lambda: scorecard.score_applicant(None),
         lambda: benchmark.run_benchmark(None),
     ):
         with pytest.raises(NotImplementedError):

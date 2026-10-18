@@ -597,13 +597,109 @@ policy.
 plain JSON. A scorecard has to be scoreable by hand, years later, with no code at
 all. That is why nothing in this pipeline is pickled.
 
-## 7. Interactive scorer & reason codes
-**Status: 🟡 skeleton — built in Phase 7.**
+## 7. Interactive scorer & reason codes  *(built 18 Oct 2026)*
 
-Given an applicant, the scorer returns their PD, their scaled score, and **reason
-codes** — the bins contributing the largest negative points relative to a
-reference (the adverse-action / explainability output a bank must provide). Built
-to cover many applicant scenarios interactively, not a single demo row.
+Given one applicant, return their score, their PD, and **reason codes** — the
+characteristics where they lost the most points.
+
+### 7.1 Reason codes are a legal artefact
+
+A declined applicant is entitled to be told why. In the US that is the
+adverse-action notice required by ECOA / Regulation B; in South Africa the
+National Credit Act obliges a lender to give reasons on request. *"The model said
+no"* is not an answer in either jurisdiction.
+
+This is the clearest practical reason the project uses a points table rather than
+a gradient-boosted model. Reason codes here are not a surrogate model, a LIME
+explanation or a SHAP value — they are **read directly off the arithmetic that
+produced the decision**. The sum of the points *is* the score, so the
+characteristic that cost the most points *is* the reason.
+
+### 7.2 Lost points, not low points
+
+Each characteristic is measured against the **best bin available in that
+characteristic**:
+
+$$\text{points lost}_k = \max_b(\text{points}_{kb}) - \text{points awarded}_k$$
+
+Measuring against the mean would be wrong in a specific and unfair way: an
+applicant slightly below average on a strongly predictive characteristic would be
+told about *that*, instead of the characteristic where they actually lost 40
+points. The regulatory question is where the points went, and the best attainable
+bin is the only reference that answers it.
+
+A characteristic where the applicant already holds the best bin has lost nothing
+and can never be cited. That falls out of the arithmetic rather than needing a
+special case, which is exactly why
+`test_best_possible_applicant_has_no_reason_codes` asserts it — a notice saying
+*"your perfect credit history counted against you"* would be worse than none.
+
+Losses below `minimum_points_lost` (1 point) are suppressed: being one point
+short of the best bin is not why anyone was declined, and listing it would bury
+the real cause.
+
+### 7.3 Fair lending: a finding that stopped this phase
+
+Running the scorer on real German Credit produced this as the **fourth reason
+code** on a live explanation:
+
+```
+4. personal_status_sex: you are in 'female: divorced / separated / married',
+   which costs 18 points against the best available ('male: divorced / separated')
+```
+
+That is an adverse-action notice telling an applicant their **sex** counted
+against them. It is unlawful under ECOA / Regulation B, and under the National
+Credit Act and the Equality Act in South Africa.
+
+The code was working perfectly. The problem is that **the model contains a
+protected characteristic** — flagged as an open decision in Phase 3 (§1.2,
+§3) and never resolved. Phase 7 is where deferring it stopped being possible,
+because this is the phase that puts the model's reasoning in front of the
+applicant.
+
+The scorer now refuses. `fair_lending.protected_characteristics` names the
+characteristics that may not be cited, and
+`fair_lending.on_protected_reason_code` sets the behaviour:
+
+* **`refuse`** (default) — raise `FairLendingError`. An explanation that cannot
+  lawfully be given should not be produced at all.
+* **`warn`** — suppress the code, and keep saying in the explanation that the
+  model is not fit for lending use.
+
+**Suppressing the notice does not make the model lawful.** The characteristic is
+still driving the score; only the disclosure has been hidden, which is arguably
+worse. The error message says so and names the real fix: drop it from the schema,
+refit from Phase 2, and re-validate. The `warn` path exists for diagnostic work
+only, and `test_warn_policy_suppresses_the_code_but_not_the_problem` checks the
+warning survives.
+
+The guard fires on what would actually be **cited**, not on mere presence in the
+model; presence is reported separately as `protected_in_model`.
+
+### 7.4 The scorer runs on frozen artefacts alone
+
+`app/scorer.py` reads only `binning_spec.json` and `scorecard.json`. It never
+refits anything and does not need the training data, the model object, or the
+pipeline. A scorecard that can only be used by the person who built it is not a
+scorecard — `test_scorer_works_from_frozen_artefacts_alone` is the check.
+
+Four ways to run it, because different situations need different ones:
+
+```bash
+python app/scorer.py                      # interactive prompts
+python app/scorer.py --examples           # three contrasting applicants
+python app/scorer.py --batch file.csv     # score a whole file
+python app/scorer.py --table              # print the points table
+```
+
+`--cutoff 520` adds an approve/decline decision to any of them. Reasons are
+attached **only on a decline**, which is when they are required.
+
+An incomplete application is scoreable, because incomplete applications are the
+normal case: Phase 2's `MISSING` bin and Phase 3's WOE for it carry it through.
+An *unknown* attribute name, by contrast, is refused — a typo must not silently
+score the applicant as though that information were missing.
 
 ## 8. Benchmark & the trade-off
 **Status: 🟡 skeleton — built in Phase 8.**

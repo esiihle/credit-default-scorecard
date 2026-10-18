@@ -110,6 +110,29 @@ model:
   enforce_negative_signs: false
   model_filename: pd_model.json
 
+# --- Fair lending: protected characteristics ----------------------------------
+# Characteristics that may not lawfully drive a credit decision, and must never
+# appear in an adverse-action notice. In the US this is ECOA / Regulation B; in
+# South Africa the National Credit Act and the Equality Act.
+#
+# German Credit's `personal_status_sex` encodes SEX. This was flagged as an open
+# decision in Phase 3 and only became urgent in Phase 7, when it appeared as the
+# fourth reason code on a live explanation:
+#
+#   "personal_status_sex: you are in 'female: divorced / separated / married',
+#    which costs 18 points against the best available"
+#
+# That sentence is a notice telling an applicant their sex counted against them.
+# The scorer now refuses to emit it.
+fair_lending:
+  protected_characteristics:
+    - personal_status_sex
+
+  # "refuse" stops the scorer; "warn" prints a warning and suppresses the code.
+  # Refuse is the default: an explanation that cannot lawfully be given should
+  # not be produced at all.
+  on_protected_reason_code: refuse
+
 # --- Phase 5: validation on the held-out set ----------------------------------
 # These are acceptance thresholds, not tuning knobs. Nothing in the validation
 # report may be used to choose a feature, a threshold or a hyperparameter — the
