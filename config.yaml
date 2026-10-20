@@ -41,7 +41,18 @@ schema:
     - purpose
     - savings_status
     - employment_since
-    - personal_status_sex
+    # personal_status_sex REMOVED 20 Oct 2026. It encodes SEX, and Phase 7's
+    # scorer surfaced it as the fourth reason code on a live explanation —
+    # an adverse-action notice citing a protected characteristic. It stays in
+    # fair_lending.protected_characteristics below so the guard keeps watch if
+    # anyone ever puts it back.
+    #
+    # Measured cost of removal on the held-out set:
+    #     test Gini  0.2100 -> 0.1997   (-0.0103)
+    #     test AUC   0.6050 -> 0.5998
+    #     test KS    0.2255 -> 0.2059
+    # Its standalone IV was 0.0414 — "weak" on the conventional scale. About one
+    # Gini point, for a model that can lawfully be used.
     - other_debtors
     - property
     - other_installment_plans
@@ -164,6 +175,23 @@ scaling:
   # characteristics and pass a broken one with few.
   verification_tolerance_per_feature: 0.5
   scorecard_filename: scorecard.json
+
+# --- Phase 7: gradient-boosted benchmark --------------------------------------
+# Deliberately modest settings. The point is a FAIR benchmark, not a tuned
+# competitor: a heavily tuned GBM on 700 rows would mostly be measuring how much
+# hyperparameter search the test set can absorb.
+#
+# scikit-learn's HistGradientBoostingClassifier rather than LightGBM — same
+# histogram-based family, already a dependency, and it handles categoricals and
+# missing values natively so no imputation choice can tilt the comparison.
+benchmark:
+  max_iter: 200
+  learning_rate: 0.05
+  max_leaf_nodes: 15
+  min_samples_leaf: 20
+  l2_regularization: 1.0
+  early_stopping: true
+  validation_fraction: 0.15
 
 logging:
   level: INFO

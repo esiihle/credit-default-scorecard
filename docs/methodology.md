@@ -42,9 +42,30 @@ optional follow-up once this build is complete.
 - **Vintage.** The loans date from the 1970s and are denominated in Deutsche
   Mark. The methodology transfers; the coefficients do not.
 - **`personal_status_sex` encodes sex**, a protected attribute under fair-lending
-  rules. It is loaded so the data stays faithful to source; whether it enters the
-  model is decided explicitly in Phase 3 and recorded there. This is the kind of
-  decision a credit-risk panel will ask about.
+  rules. It is still *loaded*, so the data stays faithful to source, but it was
+  **removed from the model on 20 Oct 2026** — see §7.3 for how Phase 7 forced the
+  decision, and §1.6 for the measured cost.
+
+### 1.6 Cost of removing the protected characteristic  *(20 Oct 2026)*
+
+`personal_status_sex` was dropped from `schema.categorical_columns`. Measured on
+the held-out set, with everything else unchanged:
+
+| | with it | without it (lawful) |
+|---|---|---|
+| test Gini | 0.2100 | **0.1997** |
+| test AUC | 0.6050 | 0.5998 |
+| test KS | 0.2255 | 0.2059 |
+| features selected | 9 | 8 |
+
+Its standalone IV was 0.0414 — "weak" on the conventional scale. **The cost is
+about one Gini point.** It remains listed under
+`fair_lending.protected_characteristics`, so the Phase 7 guard keeps watch if
+anyone ever puts it back.
+
+The number matters more than its size. A model that cannot lawfully be used has
+no Gini worth quoting, so this is not a trade-off between accuracy and compliance
+— it is the price of having a usable model at all.
 
 ### 1.3 Target definition
 
@@ -701,17 +722,70 @@ normal case: Phase 2's `MISSING` bin and Phase 3's WOE for it carry it through.
 An *unknown* attribute name, by contrast, is refused — a typo must not silently
 score the applicant as though that information were missing.
 
-## 8. Benchmark & the trade-off
-**Status: 🟡 skeleton — built in Phase 8.**
+## 8. Benchmark & the trade-off  *(built 20 Oct 2026)*
 
-A gradient-boosted model (e.g. LightGBM) is trained on the same data and compared
-to the scorecard on KS / Gini / AUC. The expected pattern — the GBM edges ahead on
-raw discrimination while losing on interpretability, stability and auditability —
-is quantified and discussed. This section is the core interview talking point:
-*why a bank knowingly accepts a small accuracy cost for an explainable model.*
+One question: **what does the interpretability cost?**
 
-## References
-- Siddiqi, N. (2017). *Intelligent Credit Scoring.* Wiley.
-- Thomas, L., Crook, J. & Edelman, D. (2017). *Credit Scoring and Its
-  Applications.* SIAM.
-- Additional references added as the methodology is written up.
+The scorecard was not chosen because it is the most accurate model available. It
+was chosen because a points table can be shown to an applicant, signed off by a
+credit committee and audited by a regulator. That is a real benefit with a real
+price, and the honest thing is to **measure the price**.
+
+### 8.1 What makes the comparison fair
+
+Three things, each easy to get wrong in a way that flatters one side:
+
+1. **The same frozen split.** Both models train on `train` and are measured on
+   `test`, the split frozen in §1.5. A benchmark scored on its own fresh split
+   would be meaningless.
+2. **The benchmark gets the RAW features, not the WOE.** Binning and WOE exist
+   to make a *linear* model work; handing a tree model pre-binned inputs throws
+   away its main advantage, which is finding non-linearity and interaction by
+   itself.
+3. **Protected characteristics are excluded from both.** A benchmark that uses
+   sex to win would not be lawful either, and the comparison would be between a
+   model that can be used and one that cannot. The report names the watched list
+   whether or not it had to act, so a reader can tell the question was asked.
+
+**scikit-learn's `HistGradientBoostingClassifier`**, not LightGBM — the same
+histogram-based family, already a dependency, and it handles categoricals and
+missing values natively, so no imputation choice can tilt the result. Settings
+are deliberately modest: a heavily tuned booster on 700 rows would mostly be
+measuring how much hyperparameter search the test set can absorb.
+
+### 8.2 The result
+
+| model | test Gini | test AUC | test KS | train Gini | train→test drop |
+|---|---|---|---|---|---|
+| Scorecard (logistic + WOE) | 0.1997 | 0.5998 | 0.2059 | 0.4747 | 0.2751 |
+| Benchmark (gradient boosting) | **0.2137** | 0.6069 | 0.1949 | **0.8625** | **0.6487** |
+
+**Gini gap: +0.0141 (+7.1% relative).** The benchmark wins, and barely.
+
+The second number is the more interesting one. The benchmark's **train Gini is
+0.8625 against a test Gini of 0.2137** — it drops 0.65 from train to test, where
+the scorecard drops 0.28. The overfitting gap is **+0.3737**. Most of what the
+booster learned was this particular 700 rows, and variance is the first thing to
+disappear next quarter.
+
+So the honest summary is: *on a book this size, the gradient-boosted model buys
+about one Gini point of out-of-sample discrimination and pays for it with three
+times the overfitting.* The interpretability is close to free here, and the
+number to quote is +0.0141.
+
+### 8.3 What the scorecard buys for that gap
+
+* a points table an applicant can be shown;
+* reason codes read off the decision arithmetic itself, not a surrogate model;
+* monotonic risk by construction, so cut-off policy is defensible;
+* scoreable by hand, years later, from a JSON file.
+
+### 8.4 If the gap had been large
+
+It is worth saying what the position would be, because the answer must not
+depend on the result being convenient. The report has three branches, and the
+material-loss one says plainly that a large gap is *a real finding and should be
+reported, not buried* — the scorecard would still be the right choice where
+explainability is a legal requirement, and the gap is what that requirement
+costs. `test_report_does_not_hide_a_material_loss` checks that wording exists.
+

@@ -5,7 +5,7 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 7 — Interactive scorer + benchmark (Nov 16 – Nov 22), started early
+**Current phase:** Phase 7 complete; Phase 8 — Docs & presentation (Nov 23 – Nov 29) next
 **Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
 tests green (7); exploration notebook written and run.
 **Next action:** Run the exploration notebook and fill in its findings table
@@ -29,8 +29,10 @@ split manifest.
       explanation ("you are in 'female: divorced / separated / married', which
       costs 18 points"), i.e. an adverse-action notice citing SEX. The scorer now
       refuses to emit it (`fair_lending.on_protected_reason_code: refuse`).
-      **STILL TO DO:** remove it from `schema.categorical_columns` and refit from
-      Phase 2, because suppressing the notice does not make the model lawful.
+      **DONE 20 Oct 2026:** removed from `schema.categorical_columns` and refit.
+      Measured cost: test Gini 0.2100 -> 0.1997 (-0.0103), AUC 0.6050 -> 0.5998,
+      KS 0.2255 -> 0.2059. Its standalone IV was 0.0414 ("weak"). It stays in
+      `fair_lending.protected_characteristics` so the guard keeps watch.
 
 ## Phase checklist
 - [x] Documentation (OVERVIEW, README, ROADMAP, methodology, LICENSE, .gitignore)
@@ -52,7 +54,7 @@ python scripts/run_pipeline.py     # real data from data/raw if present, else th
 python scripts/run_pipeline.py --sample   # force the committed sample
 python scripts/make_sample.py      # rebuild the committed sample from the real file
 python app/scorer.py               # placeholder until Phase 7
-pytest                             # 147 tests (smoke + Phases 1-7), all green
+pytest                             # 163 tests (smoke + Phases 1-7), all green
 python scripts/run_pipeline.py --no-save  # run the checks without writing splits
 # notebooks/01_exploration.ipynb   # open in VS Code, Run All
 ```
@@ -60,6 +62,60 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-20 — Protected characteristic removed; gradient-boosted benchmark
+- **`personal_status_sex` removed from the model.** The Phase 7 guard was only
+  refusing to *disclose* it; the characteristic was still driving the score.
+  Dropped from `schema.categorical_columns`, refit from Phase 2, re-validated.
+  Measured cost on the held-out set:
+  | | with it | without (lawful) |
+  |---|---|---|
+  | test Gini | 0.2100 | **0.1997** |
+  | test AUC | 0.6050 | 0.5998 |
+  | test KS | 0.2255 | 0.2059 |
+  Standalone IV 0.0414 ("weak"). **About one Gini point** — recorded in
+  methodology §1.6 so the number is quotable. It stays listed under
+  `fair_lending.protected_characteristics` so the guard watches for a relapse.
+- A smoke test had to change with it: `RAW_COLUMN_ORDER` and the config schema
+  were asserted **equal**, and are now legitimately different — the file still
+  contains the column, the model does not. The test now checks the schema is a
+  SUBSET of the file, and that anything excluded is a declared protected
+  characteristic rather than an accident.
+
+- `src/benchmark.py` built: `prepare_features`, `fit_benchmark`, `compare`,
+  `benchmark_report`. Uses scikit-learn's `HistGradientBoostingClassifier` —
+  same histogram-based family as LightGBM, already a dependency, and native
+  handling of categoricals and missing values so no imputation choice can tilt
+  the result.
+- Three things make the comparison fair, each with a test: the **same frozen
+  split**; the benchmark gets the **raw features, not the WOE** (binning exists
+  to make a linear model work, so pre-binning a tree model throws away its
+  advantage); and **protected characteristics excluded from both**.
+
+#### The result, and the number worth quoting
+| model | test Gini | train Gini | train->test drop |
+|---|---|---|---|
+| Scorecard | 0.1997 | 0.4747 | 0.2751 |
+| Benchmark (GBM) | **0.2137** | **0.8625** | **0.6487** |
+
+Gini gap **+0.0141 (+7.1% relative)** — the benchmark wins, barely. The more
+interesting figure is the overfitting gap of **+0.3737**: the booster's train
+Gini is 0.86 against a test Gini of 0.21, so most of what it learned was this
+particular 700 rows. On a book this size the GBM buys about one Gini point of
+out-of-sample discrimination and pays with three times the overfitting.
+- The report has a material-loss branch too, which says a large gap is "a real
+  finding and should be reported, not buried" — the answer must not depend on
+  the result being convenient.
+  `test_report_does_not_hide_a_material_loss` checks that wording exists.
+- `tests/test_benchmark.py` (new): 16 tests — protected characteristic excluded,
+  raw features not WOE, categoricals passed natively, same frozen split, guards,
+  valid probabilities, reproducibility, benchmark actually learning, the
+  comparison table, gap quantified absolutely and relatively, the overfitting
+  gap, the report naming what the scorecard buys, the material-loss wording, and
+  the watched-list line. Suite now 163 green.
+- Phase 0's "declared but pending" smoke test replaced: every stage is built.
+- **Next:** Phase 8 — the README with the real points table, the validation
+  numbers and the benchmark table, plus the slide deck.
 
 ### 2026-10-18 — Phase 7: applicant scorer and reason codes
 - `src/scorecard.py` built: `applicant_to_frame`, `score_applicant`,

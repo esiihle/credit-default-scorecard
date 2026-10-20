@@ -237,10 +237,27 @@ def main():
             card_path = scaling.save_scorecard(scorecard, config)
             print(f"\n  points table written to: {card_path}")
 
+    # --- Phase 7: gradient-boosted benchmark ---------------------------------
+    # The one question: what does the interpretability cost?
+    print()
+    print("Stage 7 — Benchmark: scorecard vs gradient boosting")
+    if pd_model is None:
+        print("  SKIPPED — there is no scorecard to compare against.")
+    else:
+        try:
+            fitted_benchmark = benchmark.fit_benchmark(train, test, config)
+            comparison = benchmark.compare(
+                model.predict_pd(pd_model, train_woe),
+                model.predict_pd(pd_model, test_woe),
+                fitted_benchmark,
+                train["is_default"], test["is_default"], config)
+            print(benchmark.benchmark_report(comparison))
+        except benchmark.BenchmarkError as error:
+            print(f"  CANNOT BENCHMARK: {error}")
+
     # --- Downstream stages (progressively implemented) ---
     print()
     print("Downstream stages:")
-    _run_stage("Stage 8 — Benchmark", benchmark.run_benchmark, df, config)
 
     print("\nPhase 0 complete: pipeline runs end-to-end and reports stage status.")
 

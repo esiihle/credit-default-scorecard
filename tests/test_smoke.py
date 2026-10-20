@@ -53,36 +53,69 @@ def test_missing_target_fails_loudly():
         bad_path.unlink(missing_ok=True)
 
 
-def test_downstream_stages_declared_but_pending():
-    """Every stage NOT YET BUILT exists and cleanly signals 'not built yet'.
+def test_every_pipeline_stage_is_now_built():
+    """Phase 0 kept a list of stages that still raised NotImplementedError.
 
-    Stages drop off this list as they are implemented: binning left it in
-    Phase 2 (5 Oct), WOE in Phase 3 (9 Oct), the PD model in Phase 4 (10 Oct)
-    validation in Phase 5 (13 Oct)
-    and score scaling in Phase 6 (14 Oct); each now has its own test module.
+    As of Phase 7 (20 Oct 2026) that list is empty: load, binning, woe, model,
+    validate, scaling, scorecard and benchmark are all implemented and each has
+    its own test module. This replaces the old "declared but pending" check so
+    the suite records that the scaffold is fully filled in.
     """
-    for call in (
-        lambda: benchmark.run_benchmark(None),
-    ):
-        with pytest.raises(NotImplementedError):
-            call()
+    import inspect
 
+    stages = {
+        "load": load.run_phase1,
+        "binning": binning.fit_bins,
+        "woe": woe.compute_woe_iv,
+        "model": model.fit_pd_model,
+        "validate": validate.evaluate,
+        "scaling": scaling.build_points_table,
+        "scorecard": scorecard.score_applicant,
+        "benchmark": benchmark.fit_benchmark,
+    }
 
-# --- Added 30 Sep 2026: real-data loading and the code table ---------------
+    for name, function in stages.items():
+        source = inspect.getsource(function)
+        assert "NotImplementedError" not in source, (
+            f"{name} still raises NotImplementedError"
+        )
 
+def test_config_schema_is_a_subset_of_what_the_raw_file_contains():
+    """The schema says what we MODEL; RAW_COLUMN_ORDER says what the file HAS.
 
-def test_raw_column_order_matches_the_config_schema():
-    """Every column the config expects is produced by the raw loader."""
+    These were identical until 20 Oct 2026, when `personal_status_sex` was
+    removed from the schema as a protected characteristic. The file still
+    contains it — the source data is not edited — so the right relationship is
+    now subset, not equality.
+
+    Both directions still matter:
+      * every column the schema names must exist in the file, or loading breaks;
+      * a column in the file but not the schema is a deliberate exclusion.
+    """
     config = load_config()
     schema = config["schema"]
-    expected = set(schema["numeric_columns"]) | set(schema["categorical_columns"])
-    expected.add(schema["target_column"])
 
-    assert expected == set(load.RAW_COLUMN_ORDER), (
-        "config.yaml and RAW_COLUMN_ORDER have drifted apart: "
-        f"{expected.symmetric_difference(set(load.RAW_COLUMN_ORDER))}"
+    modelled = (set(schema["numeric_columns"])
+                | set(schema["categorical_columns"])
+                | {schema["target_column"]})
+    in_file = set(load.RAW_COLUMN_ORDER)
+
+    unknown = modelled - in_file
+    assert not unknown, (
+        f"the schema names columns the raw file does not contain: {sorted(unknown)}"
     )
 
+    # Anything excluded must be excluded on purpose, which for now means it is a
+    # declared protected characteristic.
+    excluded = in_file - modelled
+    protected = set(config.get("fair_lending", {}).get(
+        "protected_characteristics", []))
+    unexplained = excluded - protected
+    assert not unexplained, (
+        f"columns are in the file but not modelled, with no reason recorded: "
+        f"{sorted(unexplained)}. Either model them or add them to "
+        f"fair_lending.protected_characteristics."
+    )
 
 def test_decode_values_translates_codes_to_labels():
     """A-codes become readable labels."""
