@@ -5,9 +5,11 @@
 > `docs/ROADMAP.md`) and you know exactly where the project stands. Newest entry
 > at the top.
 
-**Current phase:** Phase 7 complete; Phase 8 — Docs & presentation (Nov 23 – Nov 29) next
-**Overall status:** 🟢 Pipeline runs end-to-end on the **real** 1,000-row UCI file;
-tests green (7); exploration notebook written and run.
+**Current phase:** Phase 8 — Docs & presentation, **complete**. Build finished; remaining: run the exploration notebook, then the slide deck.
+**Overall status:** 🟢 Every stage built; pipeline runs end-to-end on the **real**
+1,000-row UCI file; **179 tests green** (8 skip until charts are generated from
+real data); README carries the real points table, validation numbers and the
+benchmark comparison.
 **Next action:** Run the exploration notebook and fill in its findings table
 (carried over from 1 Oct), then review the Phase 1 data-quality report and the
 split manifest.
@@ -44,7 +46,7 @@ split manifest.
 - [ ] Phase 5 — Validation (KS/Gini/AUC/PSI)
 - [ ] Phase 6 — Score scaling & points table
 - [ ] Phase 7 — Interactive scorer + benchmark
-- [ ] Phase 8 — Docs & presentation
+- [x] Phase 8 — Docs & presentation
 - [ ] Phase 9 — (optional) SAS parallel build
 
 ## How to run (current state)
@@ -62,6 +64,59 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-21 — Phase 8: the README, the charts, and a KS that disagreed with itself
+The last phase. Nothing new about credit; everything about the gap between a
+result and a reader.
+
+- **`scripts/make_charts.py`** — five charts from one pipeline run, plus
+  `docs/charts/numbers.json`. `--sample`, `--only`, `--list`, `--out`.
+  The charts: score separation with the cutoff, ROC + KS side by side, **the
+  points table itself**, calibration, and scorecard vs benchmark.
+- **`README.md` rewritten** — leads with the result *including the two failing
+  validation gates*, shows the scorecard as a chart, prices the interpretability
+  against the benchmark, and gives the fair-lending finding its own section.
+- **`tests/test_docs.py`** — 16 tests, including two that are not about numbers:
+  the README must keep reporting the failing gates, and must keep the
+  fair-lending finding and its measured cost.
+
+#### A KS that disagreed with itself
+The KS panel was drawn from the rounded **points** while the validation report
+quotes KS on the continuous **predicted PD**. They differed in the fourth
+decimal, so the README would have carried two different KS figures a page apart
+— the kind of discrepancy an interviewer spots and an author cannot explain.
+
+The chart now draws the PD curve, so the gap on the chart *is* the KS in the
+table, and the difference is recorded as `ks_shift_from_rounding`. Rounding to
+whole points creates ties and KS on a coarser scale can land either side of the
+continuous figure by chance; a positive shift is the size of the wobble, not a
+gain.
+
+#### Testing against my own future temptation
+`test_readme_reports_the_failing_gates` asserts the README still says the model
+fails two thresholds. `test_readme_keeps_the_fair_lending_finding` asserts the
+protected-characteristic section and its measured cost are still there. The
+easiest way to make a portfolio project look stronger is to delete the sentence
+admitting a limit was not cleared — now that deletes a passing test with it.
+
+#### Two charting faults no test could catch
+Two translucent fills turned the score-distribution overlap into a muddy third
+colour — and the overlap *is* the business problem that chart exists to show;
+each distribution now has a solid outline over a light fill. And the points
+table's characteristic names sat in the left margin at a fixed offset, colliding
+with the longest bin labels; they are now bold header rows inside the axis.
+Found by opening the PNG and looking.
+
+- **A silent edit, caught by `git status`.** The first attempt to add
+  methodology §9 inserted it before a `## References` heading this file does not
+  have. The edit matched nothing, changed nothing, and reported success — found
+  only because `docs/methodology.md` showed unmodified. An edit that cannot fail
+  loudly will eventually fail quietly, which is the same reasoning behind the
+  stamp in `finish()` and the required `history` argument in the V8 model.
+
+#### Still outstanding
+`notebooks/01_exploration.ipynb` has still never been run.
+
 
 ### 2026-10-20 — Protected characteristic removed; gradient-boosted benchmark
 - **`personal_status_sex` removed from the model.** The Phase 7 guard was only

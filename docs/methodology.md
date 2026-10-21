@@ -789,3 +789,97 @@ reported, not buried* — the scorecard would still be the right choice where
 explainability is a legal requirement, and the gap is what that requirement
 costs. `test_report_does_not_hide_a_material_loss` checks that wording exists.
 
+## 9. Reporting  *(built 21 Oct 2026)*
+
+The last phase produces nothing new about credit. It is about the gap between a
+result and a reader, which is where quantitative work is usually lost.
+
+### 9.1 Charts as a build artefact
+
+`scripts/make_charts.py` regenerates every chart in the README from one pipeline
+run and writes `docs/charts/numbers.json` alongside them. The README quotes
+numbers from that file and `tests/test_docs.py` checks the two agree, to the
+precision the README quotes.
+
+This closes a loop usually left open. A README's numbers drift out of date
+silently, and the drift is only ever found by a reader — in this case, an
+interviewer. Here a stale number fails the test suite.
+
+Two of those tests are not about numbers at all:
+
+* `test_readme_reports_the_failing_gates` — the model fails two validation
+  thresholds, and the README must keep saying so. The easiest way to make a
+  portfolio project look stronger is to delete the sentence admitting it did not
+  clear a limit; here that deletes a passing test with it.
+* `test_readme_keeps_the_fair_lending_finding` — the protected-characteristic
+  work, its measured cost, and the sentence stating the lesson must all remain.
+
+Writing a test against your own future temptation is an odd thing to do, and it
+is the right thing to do.
+
+### 9.2 Why the failing gates stay failing
+
+Test Gini 0.1997 against a 0.30 minimum, and a train-to-test Gini drop of 0.2751
+against a 0.15 limit. Both fail.
+
+German Credit is 1,000 rows with a 30% bad rate: 300 events across 11
+characteristics. The drop is the signature of a model fitted on too little data,
+not of a modelling error — and the honest response is to report it against
+thresholds set *before* the model was fitted. Relaxing a limit until a model
+passes is how a validation process becomes theatre, and `config.yaml` is where
+that would have happened, so `config.yaml` is where the limits stay.
+
+### 9.3 A number that had to be made exact
+
+The KS panel of the discrimination chart was first drawn from the rounded
+**points**, while the validation report quotes KS on the continuous **predicted
+PD**. The two differed in the fourth decimal place, so the README would have
+carried two different KS figures a page apart — exactly the kind of discrepancy
+an interviewer notices and an author cannot explain on the spot.
+
+The chart now draws the PD curve, so the gap on the chart *is* the KS in the
+table. The difference itself is measured and recorded as
+`ks_shift_from_rounding`: rounding a scorecard to whole points creates ties, and
+KS on a coarser scale can land either side of the continuous figure by chance. A
+positive shift is not an improvement from rounding; it is the size of the wobble,
+reported rather than assumed away.
+
+### 9.4 The stamp
+
+Charts built on the 24-row bundled sample are meaningless, and a meaningless
+chart that looks real is worse than none. When `german.data` is absent,
+`make_charts.py` falls back to the sample, stamps **ILLUSTRATIVE** across every
+chart, and records `"real_data": false`.
+`test_committed_charts_came_from_real_data` refuses the commit.
+
+The stamp is applied in `finish()`, which every chart is saved through, so it
+cannot be forgotten on one — the same structural argument as the
+per-characteristic rounding tolerance in §6: make the correct behaviour the
+default rather than something to remember.
+
+### 9.5 Two charting mistakes worth naming
+
+* **Two translucent fills on the score-separation chart** turned the overlap
+  into a third muddy colour belonging to neither group — and the overlap is the
+  business problem the chart exists to show. Each distribution now carries a
+  solid outline over a light fill, so its shape reads through the other.
+* **The characteristic names on the points table** were placed in the left
+  margin at a fixed offset, which collided with the longest bin labels — and the
+  longest labels are the ones a reader most needs. They are now bold header rows
+  inside the axis.
+
+Neither fault raises, logs, or fails a unit test. Both were found by opening the
+PNG and looking at it, which is the only check that catches them.
+
+### 9.6 A silent edit, caught by the file itself
+
+Worth recording because it is the same class of error as everything else in this
+document. The first attempt to add this section inserted it before a
+`## References` heading — which this file does not have. The edit matched
+nothing, changed nothing, and reported success. It was caught only because
+`git status` showed `docs/methodology.md` unmodified.
+
+An edit that cannot fail loudly will eventually fail quietly. The same reasoning
+produced the `history` argument in the football model's feature stage and the
+stamp in `finish()`: arrange the work so the wrong outcome is impossible or
+noisy, never merely unlikely.
