@@ -1,0 +1,51 @@
+# CI for the credit default scorecard.
+#
+# Added 22 Oct 2026. The README had carried a CI badge since 21 Oct pointing at
+# this file, which did not exist — so the badge rendered broken on the front
+# page of the repository. A badge is a claim about the project; this workflow is
+# what makes the claim true.
+#
+# What runs, and why each part is here:
+#   * the full test suite, on two Python versions, so a version-specific break
+#     is visible rather than masked
+#   * a full pipeline run on the bundled sample, because unit tests can all pass
+#     while the stages no longer fit together
+#
+# What does NOT run: anything needing data/raw/german.data. That file is not in
+# the repository (it is a third-party download), so the documentation tests that
+# compare the README against a real run skip here by design. They run on the
+# author's machine, where the data lives.
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false          # report every failing version, not just the first
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the test suite
+        run: pytest -v --durations=10
+
+      - name: Run the pipeline end to end on the bundled sample
+        run: python scripts/run_pipeline.py

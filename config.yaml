@@ -47,12 +47,16 @@ schema:
     # fair_lending.protected_characteristics below so the guard keeps watch if
     # anyone ever puts it back.
     #
-    # Measured cost of removal on the held-out set:
-    #     test Gini  0.2100 -> 0.1997   (-0.0103)
-    #     test AUC   0.6050 -> 0.5998
-    #     test KS    0.2255 -> 0.2059
-    # Its standalone IV was 0.0414 — "weak" on the conventional scale. About one
-    # Gini point, for a model that can lawfully be used.
+    # The cost of removing it is MEASURED, not recorded here. Run
+    #     python scripts/measure_fair_lending_cost.py
+    # which fits the pipeline with and without the characteristic and writes
+    # docs/charts/fair_lending.json.
+    #
+    # This comment previously carried figures (test Gini 0.2100 -> 0.1997 and
+    # similar) that came from a run never made on real data. They were wrong by
+    # roughly a factor of three and nothing in the repository could contradict
+    # them, because a number typed into a comment is a number nobody can check.
+    # Corrected 22 Oct 2026 — see PROGRESS.md.
     - other_debtors
     - property
     - other_installment_plans

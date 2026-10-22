@@ -46,22 +46,60 @@ optional follow-up once this build is complete.
   **removed from the model on 20 Oct 2026** — see §7.3 for how Phase 7 forced the
   decision, and §1.6 for the measured cost.
 
-### 1.6 Cost of removing the protected characteristic  *(20 Oct 2026)*
+### 1.6 Cost of removing the protected characteristic  *(20 Oct 2026; measurement corrected 22 Oct)*
 
-`personal_status_sex` was dropped from `schema.categorical_columns`. Measured on
-the held-out set, with everything else unchanged:
+`personal_status_sex` was dropped from `schema.categorical_columns`. It remains
+listed under `fair_lending.protected_characteristics`, so the Phase 7 guard keeps
+watch if anyone ever puts it back.
 
-| | with it | without it (lawful) |
+**What that cost is a measurement, and it is made by a command:**
+
+```bash
+python scripts/measure_fair_lending_cost.py
+```
+
+The script fits the entire pipeline twice — with the characteristic and without,
+everything else held fixed — and writes `docs/charts/fair_lending.json`. The
+README quotes that file and `tests/test_docs.py` checks the two agree. The
+characteristic is added back only inside the script's own deep copy of the
+config, so `config.yaml` is never edited and the model cannot be left in the
+wrong state by forgetting to undo something.
+
+#### The measured result *(22 Oct 2026)*
+
+| | with `personal_status_sex` | without (shipped) |
 |---|---|---|
-| test Gini | 0.2100 | **0.1997** |
-| test AUC | 0.6050 | 0.5998 |
-| test KS | 0.2255 | 0.2059 |
-| features selected | 9 | 8 |
+| test Gini | 0.6151 | **0.6137** |
+| test AUC | 0.8076 | **0.8068** |
+| test KS | 0.5270 | **0.5032** |
+| standalone IV | 0.0392 | — |
 
-Its standalone IV was 0.0414 — "weak" on the conventional scale. **The cost is
-about one Gini point.** It remains listed under
-`fair_lending.protected_characteristics`, so the Phase 7 guard keeps watch if
-anyone ever puts it back.
+The Gini cost is **0.0015**. The standard error on that Gini is ±0.060 (§8.2),
+so the cost is **one fortieth of a standard error** — not a small effect but an
+undetectable one. The characteristic's IV of 0.0392 sits in the "weak" band and
+above the 0.02 selection floor, so it was genuinely selected into the comparison
+model and genuinely contributing almost nothing.
+
+**KS tells a different story, and both are reported.** It fell by 0.0238 —
+sixteen times the Gini movement. The two statistics answer different questions:
+KS is the single widest gap between the good and bad cumulative distributions,
+while AUC/Gini integrates over the whole score range. A characteristic can
+sharpen separation at one point on the scale without improving the overall
+ordering, and that is what this one was doing. Reporting only the Gini would be
+selecting the metric that flatters a decision already taken — which is the exact
+failure mode §10 is about.
+
+For the record, the figure this section carried before it was measured was
+"about one Gini point" (0.0103). The real number is roughly **seven times
+smaller**. The direction of that error is worth noticing: the invented figure
+made the lawful choice look more costly and therefore more virtuous than it was.
+
+> **This section previously carried a table of figures** (test Gini 0.2100 →
+> 0.1997 and similar) presented as measured on the held-out set. They were not:
+> they came from a run never made on real data, and were wrong by roughly a
+> factor of three. Nothing in the repository could contradict them, because a
+> number typed into a document is a number nobody can check. That is the whole
+> reason this section now names a command instead of a result. See §10.
 
 The number matters more than its size. A model that cannot lawfully be used has
 no Gini worth quoting, so this is not a trade-off between accuracy and compliance
@@ -755,23 +793,34 @@ measuring how much hyperparameter search the test set can absorb.
 
 ### 8.2 The result
 
-| model | test Gini | test AUC | test KS | train Gini | train→test drop |
-|---|---|---|---|---|---|
-| Scorecard (logistic + WOE) | 0.1997 | 0.5998 | 0.2059 | 0.4747 | 0.2751 |
-| Benchmark (gradient boosting) | **0.2137** | 0.6069 | 0.1949 | **0.8625** | **0.6487** |
+| model | test Gini | train Gini | train→test drop |
+|---|---|---|---|
+| Scorecard (logistic + WOE) | **0.6137** | 0.6445 | **0.0309** |
+| Benchmark (gradient boosting) | 0.5668 | 0.8198 | 0.2529 |
 
-**Gini gap: +0.0141 (+7.1% relative).** The benchmark wins, and barely.
+**Gini gap: −0.0468 (−7.6% relative).** The benchmark does not win.
 
-The second number is the more interesting one. The benchmark's **train Gini is
-0.8625 against a test Gini of 0.2137** — it drops 0.65 from train to test, where
-the scorecard drops 0.28. The overfitting gap is **+0.3737**. Most of what the
-booster learned was this particular 700 rows, and variance is the first thing to
-disappear next quarter.
+Two readings, and the difference between them is the point.
 
-So the honest summary is: *on a book this size, the gradient-boosted model buys
-about one Gini point of out-of-sample discrimination and pays for it with three
-times the overfitting.* The interpretability is close to free here, and the
-number to quote is +0.0141.
+*The tempting reading:* the scorecard beats the booster, so interpretability is
+free and better. **This overclaims.** On 300 test accounts with 90 bads, the
+Hanley-McNeil standard error of the AUC is 0.030, so each Gini carries about
+±0.060. A gap of 0.0468 is smaller than the standard error of either estimate.
+Settling it would need a paired DeLong test, or repeated splits, and on 1,000
+rows the answer would most likely remain "too close to call".
+
+*The reading that survives:* there is **no evidence the benchmark discriminates
+better on this dataset**, and the generalisation gap is a far more robust
+signal. The booster's train Gini of 0.8198 against a test Gini of 0.5668 is a
+drop of 0.2529, against the scorecard's 0.0309 — an eightfold difference, and
+exactly what a flexible model does to 700 rows. Most of what it learned was this
+particular sample.
+
+So the honest summary is: *on a book this size the gradient-boosted model buys no
+measurable discrimination and pays for it with eight times the overfitting, and
+it cannot produce a reason code.* The interpretability is free here — and saying
+"free" rather than "better" is the difference between a claim that survives
+scrutiny and one that does not.
 
 ### 8.3 What the scorecard buys for that gap
 
@@ -817,17 +866,26 @@ Two of those tests are not about numbers at all:
 Writing a test against your own future temptation is an odd thing to do, and it
 is the right thing to do.
 
-### 9.2 Why the failing gates stay failing
+### 9.2 The gates, and why the thresholds stay where they are
 
-Test Gini 0.1997 against a 0.30 minimum, and a train-to-test Gini drop of 0.2751
-against a 0.15 limit. Both fail.
+Every threshold is set in `config.yaml` before the model is fitted, and on the
+held-out set the model clears all of them:
 
-German Credit is 1,000 rows with a 30% bad rate: 300 events across 11
-characteristics. The drop is the signature of a model fitted on too little data,
-not of a modelling error — and the honest response is to report it against
-thresholds set *before* the model was fitted. Relaxing a limit until a model
-passes is how a validation process becomes theatre, and `config.yaml` is where
-that would have happened, so `config.yaml` is where the limits stay.
+| gate | result | threshold | |
+|---|---|---|---|
+| Gini (test) | 0.6137 | ≥ 0.30 | pass |
+| Gini drop, train → test | 0.0309 | ≤ 0.15 | pass |
+| PSI, train vs test | 0.0267 | ≤ 0.25 | pass |
+| Hosmer-Lemeshow | p = 0.936 | not rejected at 5% | pass |
+
+The thresholds stay where they are precisely *because* the model passes them.
+A limit that moves to accommodate a result was never a limit, and the time to
+fix its position is before the result is known — which is what putting it in
+config, in an earlier commit, actually buys.
+
+The binding constraint on all four figures is the dataset: 1,000 rows, 300
+events, 12 characteristics. That is why §8.2 quotes a standard error beside the
+point estimate rather than leaving the precision implied.
 
 ### 9.3 A number that had to be made exact
 
@@ -883,3 +941,99 @@ An edit that cannot fail loudly will eventually fail quietly. The same reasoning
 produced the `history` argument in the football model's feature stage and the
 stamp in `finish()`: arrange the work so the wrong outcome is impossible or
 noisy, never merely unlikely.
+
+## 10. The numbers that were never measured  *(22 Oct 2026)*
+
+On 22 October the documentation tests built the day before failed on a clean
+clone. What they had caught was not a typo. Every headline figure in this
+project's README, methodology, `PROGRESS.md` and `config.yaml` was wrong, by
+roughly a factor of three, and had been wrong since 20 October.
+
+### 10.1 What the figures said, and what the data says
+
+| | documented | actual, on real German Credit |
+|---|---|---|
+| test Gini | 0.1997 | **0.6137** |
+| test AUC | 0.5998 | **0.8068** |
+| test KS | 0.2059 | **0.5032** |
+| train → test Gini drop | 0.2751 | **0.0309** |
+| benchmark test Gini | 0.2137 | **0.5668** |
+
+The documented numbers did not merely understate the model. They inverted two
+conclusions:
+
+* The README stated the model **failed two validation gates**. It passes all
+  four.
+* The README stated the **gradient booster beat the scorecard** by 0.0141 Gini.
+  The scorecard comes in 0.0468 ahead — within the standard error either way,
+  but certainly not behind.
+
+A reader would have been told this scorecard barely ranks better than a coin
+and loses to a boosted tree. Both claims were false, and both were in the file
+a recruiter reads first.
+
+### 10.2 How it happened
+
+The figures came from a working session in which the pipeline was run against
+**synthetic data** generated to the right shape, and the output was recorded as
+though it had come from the real UCI file. The error was in the recording, not
+in any line of model code: the pipeline has been correct throughout, which is
+precisely why nothing downstream complained.
+
+Then they spread. Once written into `config.yaml` as a comment, they were
+copied into the methodology, the progress log, and the README — each copy
+borrowing its authority from the one before it. By 21 October the same five
+numbers existed in five places and no place could check any other.
+
+### 10.3 Why it survived a test suite
+
+This is the part worth dwelling on, because the suite was *designed* to catch
+exactly this and did not.
+
+`tests/test_docs.py` carried two kinds of check. One compared the README
+against `docs/charts/numbers.json` — the file the chart script writes from a
+real run. That check was correct, and it is what eventually failed. The other
+asserted string literals:
+
+```python
+assert "0.2751" in readme, "the train-to-test Gini drop must be stated"
+assert "0.1997" in readme and "0.2100" in readme
+assert "0.2137" in readme, "the benchmark's test Gini"
+```
+
+Those lines did not verify anything. They **re-stated the wrong numbers in a
+second place** and then checked that the first place still agreed. A test that
+hardcodes the value it is checking is not a test; it is a copy of the claim,
+wearing the costume of a check. Worse, it actively protected the error: any
+attempt to correct the README would have turned the suite red, and red suites
+invite reverting the change rather than questioning the test.
+
+The dynamic check only fired once a **real** `numbers.json` existed — which
+required the real data, which arrived a day later.
+
+### 10.4 What changed
+
+* **No documented figure is asserted as a literal anywhere in the tests.** Every
+  one is compared against `numbers.json` or `fair_lending.json`.
+* **`test_readme_gate_verdicts_match_the_config_thresholds`** reads the
+  thresholds from `config.yaml`, applies them to the recorded run, counts the
+  ✅ and ❌ marks in the README, and fails if the counts disagree. This single
+  test would have caught the inversion on its own, without knowing any value.
+* **The fair-lending cost is produced by a command**
+  (`scripts/measure_fair_lending_cost.py`) rather than typed into a comment.
+* **`config.yaml` records how to measure, not what was measured.**
+
+### 10.5 The general rule
+
+Three of this project's bugs now share one shape: the singular matrix that
+returned plausible coefficients, the verification tolerance that was flat when
+the error scaled, and this. In each case the wrong answer was *representable* —
+the system could hold it, display it, and pass its own checks while holding it.
+
+> **A number that no command can regenerate is not a result. It is a note about
+> a result, and notes drift.**
+
+Every figure this project publishes now has a command behind it, and a test that
+compares the document to that command's output. The honest test of whether that
+is enough is simple: delete any number from any of these files, run the
+measurement, and see whether the same number comes back.

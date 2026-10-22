@@ -32,8 +32,9 @@ split manifest.
       costs 18 points"), i.e. an adverse-action notice citing SEX. The scorer now
       refuses to emit it (`fair_lending.on_protected_reason_code: refuse`).
       **DONE 20 Oct 2026:** removed from `schema.categorical_columns` and refit.
-      Measured cost: test Gini 0.2100 -> 0.1997 (-0.0103), AUC 0.6050 -> 0.5998,
-      KS 0.2255 -> 0.2059. Its standalone IV was 0.0414 ("weak"). It stays in
+      Cost of removal is MEASURED by scripts/measure_fair_lending_cost.py and
+      written to docs/charts/fair_lending.json (the figures once recorded here
+      were from a run never made on real data — see 22 Oct). It stays in
       `fair_lending.protected_characteristics` so the guard keeps watch.
 
 ## Phase checklist
@@ -64,6 +65,96 @@ python scripts/run_pipeline.py --no-save  # run the checks without writing split
 ---
 
 ## Session log
+
+### 2026-10-22 — Every published number was wrong, and the test suite was holding it in place
+The documentation tests written yesterday failed on a clean clone. What they
+caught was not a typo: **every headline figure in the README, methodology,
+PROGRESS and config was wrong by roughly a factor of three**, and had been since
+20 Oct.
+
+| | documented | actual |
+|---|---|---|
+| test Gini | 0.1997 | **0.6137** |
+| test AUC | 0.5998 | **0.8068** |
+| test KS | 0.2059 | **0.5032** |
+| train→test drop | 0.2751 | **0.0309** |
+| benchmark Gini | 0.2137 | **0.5668** |
+
+Two conclusions were inverted, not just understated:
+- The README said the model **failed two validation gates**. It passes all four.
+- The README said the **GBM beat the scorecard**. The scorecard is 0.0468 ahead
+  — inside the standard error either way, but certainly not behind.
+
+**Cause.** The figures came from a session where the pipeline ran on *synthetic*
+data and the output was recorded as real. No model code was ever wrong, which is
+why nothing downstream complained. Written into `config.yaml` as a comment, they
+were then copied into the methodology, the progress log and the README — five
+copies, none able to check another.
+
+**Why the suite did not catch it.** `test_docs.py` had two kinds of check. One
+compared the README against `numbers.json` and was correct. The other asserted
+literals — `assert "0.2751" in readme` — which did not verify anything; it
+re-stated the wrong number in a second place and checked the first place still
+agreed. **A test that hardcodes the value it checks is a copy of the claim
+wearing the costume of a check**, and it actively defended the error: correcting
+the README would have turned the suite red.
+
+#### Fixed today
+- **Every literal removed from `test_docs.py`.** All documented figures now
+  compare against `numbers.json` or `fair_lending.json`.
+- **`test_readme_gate_verdicts_match_the_config_thresholds`** — reads thresholds
+  from `config.yaml`, applies them to the recorded run, counts the ✅/❌ marks in
+  the README and fails if they disagree. This one test catches the inversion
+  without knowing a single value.
+- **`scripts/measure_fair_lending_cost.py`** — fits the pipeline with and without
+  the protected characteristic (in a deep copy of the config, so `config.yaml`
+  is never edited) and writes `docs/charts/fair_lending.json`. The cost is now a
+  command, not a comment. It also explains itself when the characteristic falls
+  below the IV floor and the two runs are therefore identical.
+- **`.github/workflows/tests.yml` added.** The README has carried a CI badge
+  since 21 Oct pointing at a workflow that did not exist, so the badge rendered
+  broken on the front page. A badge is a claim; the workflow makes it true.
+  `test_the_ci_badge_points_at_a_workflow_that_exists` now checks that.
+- **README, methodology §1.6, §8.2, §9.2 and `config.yaml` rewritten** from the
+  real run, with the Hanley-McNeil standard error (±0.060 on Gini) quoted beside
+  the point estimates — which is what makes the benchmark comparison honest
+  rather than a victory lap.
+- **Methodology §10** records the whole incident.
+
+#### The fair-lending cost, now actually measured
+`scripts/measure_fair_lending_cost.py` ran on the real german.data:
+
+| | with sex | without (shipped) |
+|---|---|---|
+| test Gini | 0.6151 | **0.6137** |
+| test AUC | 0.8076 | **0.8068** |
+| test KS | 0.5270 | **0.5032** |
+
+**Cost: 0.0015 Gini** — one fortieth of the ±0.060 standard error, so
+undetectable rather than merely small. Standalone IV 0.0392 ("weak", above the
+0.02 floor, so it really was selected).
+
+KS fell 0.0238, sixteen times the Gini movement, because KS is a single-point
+maximum while Gini integrates: the characteristic sharpened separation at one
+place on the scale without improving the ranking. Both are in the README —
+quoting only the Gini would be picking the metric that flatters a decision
+already made.
+
+The figure previously documented was 0.0103, "about one Gini point". The real
+number is seven times smaller, and the invented one made the lawful choice look
+more costly, and so more virtuous, than it was.
+
+`test_readme_matches_the_measured_fair_lending_cost` failed on first run — it
+wanted 0.6151 in a README that did not have it yet. That is the loop closing
+properly for the first time: a measurement produced a number, and the suite
+refused to call the documentation correct until the document carried it.
+
+#### The rule this leaves behind
+A number that no command can regenerate is not a result — it is a note about a
+result, and notes drift. Three of this project's bugs now share that shape: the
+singular matrix that returned plausible coefficients, the flat verification
+tolerance, and this. In each, the wrong answer was *representable*.
+
 
 ### 2026-10-21 — Phase 8: the README, the charts, and a KS that disagreed with itself
 The last phase. Nothing new about credit; everything about the gap between a
@@ -125,10 +216,11 @@ Found by opening the PNG and looking.
   Measured cost on the held-out set:
   | | with it | without (lawful) |
   |---|---|---|
-  | test Gini | 0.2100 | **0.1997** |
-  | test AUC | 0.6050 | 0.5998 |
-  | test KS | 0.2255 | 0.2059 |
-  Standalone IV 0.0414 ("weak"). **About one Gini point** — recorded in
+  | test Gini | measured | by the script |
+  | test AUC | measured | by the script |
+  | test KS | measured | by the script |
+  Run `python scripts/measure_fair_lending_cost.py`; the figures that used to
+  sit here were never measured on real data (see 22 Oct). Recorded in
   methodology §1.6 so the number is quotable. It stays listed under
   `fair_lending.protected_characteristics` so the guard watches for a relapse.
 - A smoke test had to change with it: `RAW_COLUMN_ORDER` and the config schema
@@ -150,8 +242,9 @@ Found by opening the PNG and looking.
 #### The result, and the number worth quoting
 | model | test Gini | train Gini | train->test drop |
 |---|---|---|---|
-| Scorecard | 0.1997 | 0.4747 | 0.2751 |
-| Benchmark (GBM) | **0.2137** | **0.8625** | **0.6487** |
+| Scorecard | 0.6137 | 0.6445 | 0.0309 |
+| Benchmark (GBM) | 0.5668 | **0.8198** | **0.2529** |
+*(corrected 22 Oct — the figures first recorded here were from synthetic data)*
 
 Gini gap **+0.0141 (+7.1% relative)** — the benchmark wins, barely. The more
 interesting figure is the overfitting gap of **+0.3737**: the booster's train

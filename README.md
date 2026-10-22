@@ -11,23 +11,25 @@
 ## The headline result
 
 A scorecard is judged on three things: does it rank, is it stable, and can you
-explain it to the person you declined. This one is built to be checked on all
-three.
+explain it to the person you declined. Every threshold below was set in
+`config.yaml` **before** the model was fitted.
 
-| Metric | Test | Train | Threshold |
+| Gate | Result | Threshold | |
 |---|---|---|---|
-| Gini | **0.1997** | 0.4747 | ≥ 0.30 ❌ |
-| AUC | 0.5998 | — | — |
-| KS | 0.2059 | — | — |
-| Train → test Gini drop | **0.2751** | | ≤ 0.15 ❌ |
+| Gini (test) | **0.6137** | ≥ 0.30 | ✅ |
+| Gini drop, train → test | **0.0309** | ≤ 0.15 | ✅ |
+| PSI, train vs test | **0.0267** | ≤ 0.25 | ✅ |
+| Hosmer-Lemeshow | p = **0.936** | not rejected at 5% | ✅ |
 
-**Two validation gates fail, and this README reports them rather than moving
-the thresholds.** German Credit is 1,000 rows with a 30% bad rate — 300 events
-across 11 characteristics — and a Gini drop of 0.2751 is the signature of a
-model fitted on too little data, not of a modelling mistake. The thresholds
-stay where a model-validation function would set them, and the model is
-reported as failing them. Quietly relaxing a limit until a model passes is the
-single most common way a validation process becomes theatre.
+Supporting figures: **AUC 0.8068**, **KS 0.5032**, on a held-out 300-account test
+set (700 train / 300 test, 30% bad rate, 12 characteristics).
+
+**The uncertainty matters as much as the point estimate.** On 300 accounts with
+90 bads, the Hanley-McNeil standard error of the AUC is 0.030, so the Gini
+carries roughly **±0.060** — an approximate 95% interval of **[0.50, 0.73]**.
+That clears the 0.30 floor across its whole range, which is the claim worth
+making. It is also wide enough that small differences between models on this
+dataset mean nothing, a point the benchmark section below depends on.
 
 ![score separation](docs/charts/score-separation.png)
 ![discrimination](docs/charts/discrimination-roc-ks.png)
@@ -40,26 +42,43 @@ addition.
 
 ![the points table](docs/charts/points-table.png)
 
-Scaled with **PDO 20, base score 600 at 50:1 odds** — so every 20 points halves
-the odds of default, and 600 points means a 1.96% PD. `base_odds` is the lever
-that moves the attainable range, not `base_score`: raising the base score shifts
-the offset and the whole range moves with it, leaving the gap invariant.
-Measured identical at 600, 520 and 500.
+Scaled with **PDO 20, base score 600 at 50:1 odds** — every 20 points halves the
+odds of default, and 600 points means a 1.96% PD. The attainable range is
+**344–667**. `base_odds` is the lever that moves that range, not `base_score`:
+raising the base score shifts the offset and the whole range moves with it,
+leaving the span invariant. Measured identical at 600, 520 and 500.
 
-### What interpretability costs
+At an illustrative cutoff of **502**, 65% of applicants are approved and **15.9%**
+of those approved default — against a 30% base rate. Where the cutoff actually
+belongs is a business decision, not a modelling one, and
+`scaling.cutoff_table` prints the whole frontier.
+
+### What interpretability costs — on this data, nothing
 
 ![scorecard vs benchmark](docs/charts/scorecard-vs-benchmark.png)
 
 | | Scorecard | Gradient boosting |
 |---|---|---|
-| Test Gini | 0.1997 | **0.2137** |
-| Train Gini | 0.4747 | 0.8625 |
-| Train → test drop | 0.2751 | **0.6487** |
+| Test Gini | **0.6137** | 0.5668 |
+| Train Gini | 0.6445 | 0.8198 |
+| Train → test drop | **0.0309** | **0.2529** |
+| Reason codes | yes | no |
 
-The benchmark buys **+0.0141 Gini (+7.1% relative)** and pays **+0.3737** more
-overfitting for it — and it cannot produce a reason code. On 1,000 rows that is
-the honest answer: the interpretable model is not meaningfully worse, and it is
-the one that can be defended to a regulator and explained to a customer.
+The gradient booster does **not** beat the scorecard here — it comes in 0.0468
+Gini lower — and it memorises far more of its training set, dropping 0.2529 from
+train to test against the scorecard's 0.0309.
+
+**The right way to state that is carefully.** A 0.0468 difference is smaller
+than the ±0.060 standard error on either estimate, so the honest claim is *no
+evidence the benchmark is better on this dataset*, not *the scorecard is
+better*. Settling it would need a paired DeLong test or repeated splits, and on
+1,000 rows the answer would probably stay "too close to call".
+
+The generalisation gap is the more robust signal: **0.2529 versus 0.0309** is an
+eightfold difference and is exactly what you would expect from a flexible model
+on 700 training rows. The conclusion that survives both readings is the useful
+one — the interpretable model gives up nothing measurable here, and it is the
+one that can be defended to a regulator and explained to a customer.
 
 ### Calibration
 
@@ -67,7 +86,8 @@ the one that can be defended to a regulator and explained to a customer.
 
 Ranking is not enough. A card can order applicants perfectly and still predict
 the wrong *level*, which matters the moment the PD is used for pricing or
-provisioning rather than only for accept/decline.
+provisioning rather than only for accept/decline. Hosmer-Lemeshow does not
+reject calibration (p = 0.936).
 
 ---
 
@@ -77,33 +97,51 @@ The raw German Credit data contains `personal_status_sex`, which encodes **sex**
 It is loaded, because the data should stay faithful to its source. What happens
 next was decided in two stages, and the first one was not good enough.
 
-**18 October — the symptom.** The applicant scorer produced this reason code on
-a declined application:
+**Stage one — the symptom.** The applicant scorer produced this reason code on a
+declined application:
 
 > *"you are in 'female: divorced / separated / married', which costs 18 points"*
 
 That is an adverse-action notice citing a protected characteristic. A guard was
 added: `reason_codes` raises `FairLendingError` rather than disclosing one.
 
-**20 October — the actual fix.** The guard suppressed the *disclosure*. The
+**Stage two — the actual fix.** The guard suppressed the *disclosure*. The
 attribute was still in the model, still moving the score, still declining
-people. It was removed from `schema.categorical_columns`, and the cost measured
-rather than assumed:
-
-| | With sex | Without |
-|---|---|---|
-| Test Gini | 0.2100 | 0.1997 |
-| Test AUC | 0.6050 | 0.5998 |
-| Test KS | 0.2255 | 0.2059 |
-
-**About one Gini point**, for a model that can lawfully be used. Its standalone
-IV was 0.0414 — "weak" on the conventional scale. The guard stays in place as a
-second line of defence, and `config.yaml` records both the decision and its
-price.
+people. It was removed from `schema.categorical_columns` entirely, and the guard
+stays in place as a second line of defence.
 
 The lesson is the one worth taking to an interview: **suppressing a disclosure
 is not the same as removing a variable.** The first makes the notice compliant;
 only the second makes the decision compliant.
+
+### What it cost
+
+A measurement, not an opinion. `scripts/measure_fair_lending_cost.py` fits the
+whole pipeline twice — with the characteristic and without, everything else held
+fixed — and writes `docs/charts/fair_lending.json`, which `tests/test_docs.py`
+then checks this README against.
+
+| | With `personal_status_sex` | Without (shipped) |
+|---|---|---|
+| Test Gini | 0.6151 | **0.6137** |
+| Test AUC | 0.8076 | **0.8068** |
+| Test KS | 0.5270 | **0.5032** |
+
+*(rounded to four places; the Gini cost at full precision is 0.0015)*
+
+**Removing sex from the model costs 0.0015 Gini.** Against the ±0.060 standard
+error on that estimate, the cost is **one fortieth of a standard error** — not
+small, but indistinguishable from zero. Its standalone Information Value was
+0.0392, inside the "weak" band and above the 0.02 selection floor, so it was
+genuinely in the model and genuinely doing almost nothing.
+
+**One honest wrinkle.** KS fell by 0.0238 — sixteen times the Gini movement.
+The two statistics are not measuring the same thing: KS is the single widest gap
+between the good and bad cumulative distributions, while Gini integrates across
+the whole range. A characteristic can sharpen separation at one point on the
+score scale without improving the overall ranking. Both figures are reported
+here because quoting only the Gini would be choosing the metric that flatters
+the decision.
 
 ## The method
 
@@ -152,14 +190,17 @@ For the real numbers, download
 into `data/raw/`, then:
 
 ```bash
-python scripts/run_pipeline.py           # the full pipeline
-python scripts/make_charts.py            # regenerates every chart above
-pytest tests/test_docs.py                # checks this README against that run
+python scripts/run_pipeline.py                  # the full pipeline
+python scripts/make_charts.py                   # regenerates every chart above
+python scripts/measure_fair_lending_cost.py     # measures the cost of the removal
+pytest tests/test_docs.py                       # checks this README against both
 ```
 
 `docs/charts/numbers.json` records the figures the charts were built from, and
-`tests/test_docs.py` checks the tables above against it. A stale number in this
-README fails the test suite.
+`tests/test_docs.py` checks the tables above against it. **A stale number in
+this README fails the test suite** — which is not a hypothetical: it is how the
+numbers in this file were found to be wrong on 22 October 2026, and the story is
+in [`PROGRESS.md`](PROGRESS.md).
 
 ## Bugs this project found, and what each one taught
 
@@ -168,10 +209,11 @@ whose docstring tells the story.
 
 | Bug | Symptom | Fix |
 |---|---|---|
+| **A test that enforced the wrong number** | `test_docs.py` hardcoded the very figures it was meant to verify, so the suite stayed green while the README reported a model that failed two gates it actually passed | Every documented figure is now checked **against `numbers.json`**, never against a literal in the test |
 | **Singular matrix on a small sample** | 14 features, 5 bads: coefficients of −21.9, NaN standard errors, VIF of 299 — and on other library versions, a crash | Events-per-variable guard, `LinAlgError` translation, and a separation check on the standard error (separation gives *huge* SEs, not NaNs — statsmodels returned coefficient −13.4 with SE 16,342) |
 | **Flat verification tolerance** | A correct 11-characteristic card failed a 1.0-point check at 2.277 | Rounding error is bounded by 0.5 points **per characteristic**; tolerance now scales |
-| **`base_score` treated as the lever** | Raising it to widen the attainable range did nothing — the gap was identical at 600, 520 and 500 | It shifts the offset, so the whole range moves. `base_odds` is the lever |
-| **Sex in a reason code** | An adverse-action notice citing a protected characteristic | Guard, then removal from the model, with the cost measured |
+| **`base_score` treated as the lever** | Raising it to widen the attainable range did nothing — the span was identical at 600, 520 and 500 | It shifts the offset, so the whole range moves. `base_odds` is the lever |
+| **Sex in a reason code** | An adverse-action notice citing a protected characteristic | Guard, then removal from the model, with the cost measured by a script rather than asserted |
 | **Bundled sample swallowed by `.gitignore`** | `data/*` ignored the committed sample; a fresh clone crashed and 2 of 4 tests failed | Ignore `data/raw/*` and `data/processed/*` only |
 
 ## Why this project
@@ -185,7 +227,7 @@ It is a South African bank credit-risk role in miniature:
 | KS / Gini / PSI against pre-set thresholds | Model validation and monitoring |
 | Reason codes | Adverse-action notices (NCA; ECOA/Reg B abroad) |
 | Removing a protected characteristic and pricing it | Fair-lending review |
-| Benchmark vs GBM | The interpretability conversation, with numbers |
+| Benchmark vs GBM, with the uncertainty stated | The interpretability conversation, with numbers |
 
 ## Repository structure
 
@@ -193,16 +235,19 @@ It is a South African bank credit-risk role in miniature:
 src/            load, binning, woe, model, validate, scaling, scorecard, benchmark
 app/scorer.py   interactive applicant scorer with reason codes
 tests/          the fragile numerics, the hand-computed WOE/IV anchors, every bug above
-scripts/        run_pipeline.py (end to end) · make_charts.py (every chart here)
+scripts/        run_pipeline.py · make_charts.py · measure_fair_lending_cost.py
 docs/           methodology.md · OVERVIEW.md · ROADMAP.md · charts/
+.github/        CI: the full suite on Python 3.11 and 3.12
 ```
 
 ## Dataset
 
 **German Credit** (UCI, 1,000 rows). Clean, documented, runs in seconds — the
-right choice for getting the methodology exactly right. **Lending Club is
-deliberately avoided**: its public versions carry well-known target leakage, and
-recognising that is the more mature move than scoring on it.
+right choice for getting the methodology exactly right. Its size is also the
+binding constraint on every result above, which is why the standard errors are
+quoted rather than hidden. **Lending Club is deliberately avoided**: its public
+versions carry well-known target leakage, and recognising that is the more
+mature move than scoring on it.
 
 ## Author
 

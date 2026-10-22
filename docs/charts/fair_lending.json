@@ -1,0 +1,105 @@
+{
+  "protected_characteristics": [
+    "personal_status_sex"
+  ],
+  "with_protected": {
+    "test_gini": 0.6151322751322752,
+    "test_auc": 0.8075661375661376,
+    "test_ks": 0.526984126984127,
+    "train_gini": 0.6516520894071915,
+    "gini_drop": 0.03651981427491635,
+    "psi": 0.028775057028551397,
+    "features_selected": 13,
+    "selected": [
+      "age_years",
+      "checking_status",
+      "credit_amount",
+      "credit_history",
+      "duration_months",
+      "employment_since",
+      "housing",
+      "installment_rate",
+      "other_installment_plans",
+      "personal_status_sex",
+      "property",
+      "purpose",
+      "savings_status"
+    ],
+    "information_values": {
+      "duration_months": 0.23359870873145555,
+      "credit_amount": 0.09436825455683068,
+      "installment_rate": 0.03322249013437236,
+      "residence_since": 0.0008556877368724152,
+      "age_years": 0.07095708638153224,
+      "existing_credits": 0.0,
+      "num_liable": 0.0,
+      "checking_status": 0.6387747121593845,
+      "credit_history": 0.25422303618737296,
+      "purpose": 0.13145085332826334,
+      "savings_status": 0.23346686675203107,
+      "employment_since": 0.14028556560231695,
+      "other_debtors": 0.0,
+      "property": 0.1401962087196671,
+      "other_installment_plans": 0.11691052834713916,
+      "housing": 0.10204019028556197,
+      "job": 0.015588937407916958,
+      "telephone": 0.0029361552457314232,
+      "foreign_worker": 0.0,
+      "personal_status_sex": 0.03919433422011963
+    }
+  },
+  "without_protected": {
+    "test_gini": 0.6136507936507938,
+    "test_auc": 0.8068253968253969,
+    "test_ks": 0.5031746031746032,
+    "train_gini": 0.6445286686103013,
+    "gini_drop": 0.030877874959507556,
+    "psi": 0.02666479701310175,
+    "features_selected": 12,
+    "selected": [
+      "age_years",
+      "checking_status",
+      "credit_amount",
+      "credit_history",
+      "duration_months",
+      "employment_since",
+      "housing",
+      "installment_rate",
+      "other_installment_plans",
+      "property",
+      "purpose",
+      "savings_status"
+    ],
+    "information_values": {
+      "duration_months": 0.23359870873145555,
+      "credit_amount": 0.09436825455683068,
+      "installment_rate": 0.03322249013437236,
+      "residence_since": 0.0008556877368724152,
+      "age_years": 0.07095708638153224,
+      "existing_credits": 0.0,
+      "num_liable": 0.0,
+      "checking_status": 0.6387747121593845,
+      "credit_history": 0.25422303618737296,
+      "purpose": 0.13145085332826334,
+      "savings_status": 0.23346686675203107,
+      "employment_since": 0.14028556560231695,
+      "other_debtors": 0.0,
+      "property": 0.1401962087196671,
+      "other_installment_plans": 0.11691052834713916,
+      "housing": 0.10204019028556197,
+      "job": 0.015588937407916958,
+      "telephone": 0.0029361552457314232,
+      "foreign_worker": 0.0
+    }
+  },
+  "cost": {
+    "test_gini": -0.001481481481481417,
+    "test_auc": -0.0007407407407407085,
+    "test_ks": -0.023809523809523836
+  },
+  "standalone_iv": {
+    "personal_status_sex": 0.03919433422011963
+  },
+  "rows": 1000,
+  "note": "Negative cost means the model WITHOUT the characteristic scored lower. A difference smaller than the standard error of the metric is not evidence of a difference."
+}
