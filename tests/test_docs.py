@@ -1,5 +1,5 @@
 """
-Phase 8 tests — the README must stay true.
+Phase 8 tests, the README must stay true.
 
 A README is the one file nobody re-reads after the code changes, which is how a
 portfolio project ends up claiming numbers its own pipeline no longer produces.
@@ -7,10 +7,10 @@ These tests make that failure loud.
 
 Two kinds of test here:
 
-* Always run — the README references only charts the chart script writes,
+* Always run, the README references only charts the chart script writes,
   carries no leftover placeholders, names the real repository, and still states
   the fair-lending finding and the failing validation gates.
-* Run when ``docs/charts/numbers.json`` is present — every headline number in
+* Run when ``docs/charts/numbers.json`` is present, every headline number in
   the README matches the run that produced the charts. Without the real
   german.data there is no numbers.json, so those skip with instructions rather
   than fail on a fresh clone.
@@ -46,7 +46,7 @@ def collapse(text):
     """Whitespace-normalised text, for matching a phrase that may be wrapped.
 
     A phrase check against the raw file fails the moment the sentence wraps
-    across a line — which says nothing about the README and everything about
+    across a line, which says nothing about the README and everything about
     the test. Collapsing runs of whitespace to one space tests the prose.
     """
     return " ".join(text.split()).lower()
@@ -70,7 +70,7 @@ def chart_script():
 def numbers():
     if not NUMBERS.exists():
         pytest.skip(
-            "docs/charts/numbers.json is absent — run "
+            "docs/charts/numbers.json is absent, run "
             "`python scripts/make_charts.py` on real data first. On a clone "
             "without data/raw/german.data this is expected."
         )
@@ -129,7 +129,7 @@ def test_readme_states_every_gate_and_its_verdict(readme):
     """The README must report each validation gate against its threshold.
 
     NOT a hardcoded number. The first version of this test asserted the literal
-    string "0.2751" — the train-to-test Gini drop — and "fail". Both came from a
+    string "0.2751", the train-to-test Gini drop, and "fail". Both came from a
     run that had never happened on real data, so the test spent a day ENFORCING
     the wrong figure rather than catching it: the README said the model failed
     two gates, the real run passed all four, and the suite was green on the lie.
@@ -174,7 +174,7 @@ def test_chart_manifest_has_a_purpose_for_every_chart(chart_script):
 
 def assert_quoted(readme, value, label, places=4):
     # Values are compared at the precision the README quotes them, never by
-    # hardcoding the digits here — see the note in
+    # hardcoding the digits here, see the note in
     # test_readme_states_every_gate_and_its_verdict.
     """The README must quote `value` somewhere, to its own precision."""
     text = f"{value:.{places}f}"
@@ -278,7 +278,7 @@ def test_the_protected_characteristic_is_not_in_the_model(numbers):
 def test_every_chart_the_readme_shows_exists_on_disk(readme):
     linked = set(re.findall(r"docs/charts/([\w.-]+\.png)", readme))
     if not any((CHART_DIR / name).exists() for name in linked):
-        pytest.skip("no charts committed yet — run scripts/make_charts.py")
+        pytest.skip("no charts committed yet, run scripts/make_charts.py")
 
     missing = [name for name in linked if not (CHART_DIR / name).exists()]
     assert not missing, f"README shows charts that are not in the repo: {missing}"
@@ -325,12 +325,12 @@ def test_readme_matches_the_measured_fair_lending_cost(readme):
     """When the cost has been measured, the README must quote THAT measurement.
 
     Skips until `scripts/measure_fair_lending_cost.py` has been run on real
-    data. It never checks a literal written here — that mistake is what let the
+    data. It never checks a literal written here, that mistake is what let the
     old figures survive for a day with a green suite.
     """
     if not FAIR_LENDING.exists():
         pytest.skip(
-            "docs/charts/fair_lending.json is absent — run "
+            "docs/charts/fair_lending.json is absent, run "
             "`python scripts/measure_fair_lending_cost.py` on real data first."
         )
 
@@ -362,7 +362,7 @@ def test_sample_charts_cannot_be_written_into_the_published_folder(chart_script)
 
     On 21 Oct 2026 the football project committed three ILLUSTRATIVE-stamped
     charts built from a 12-match sample, and shipped a README referencing two
-    more that did not exist. The stamp had worked exactly as designed — and a
+    more that did not exist. The stamp had worked exactly as designed, and a
     stamp is a warning, which is something a person can walk past.
 
     `refuse_illustrative_output` turns the warning into a refusal: it returns
@@ -387,8 +387,8 @@ def test_the_refusal_is_decided_before_any_work_is_done(chart_script):
     """`will_use_sample` must answer from the filesystem alone.
 
     The first version of this guard ran after `gather()`, which meant a run
-    doomed to be refused still paid for a full pipeline — on the football
-    project, an entire walk-forward backtest — before saying so.
+    doomed to be refused still paid for a full pipeline, on the football
+    project, an entire walk-forward backtest, before saying so.
     """
     from src.config import load_config
     config = load_config()

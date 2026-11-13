@@ -1,8 +1,8 @@
 r"""
-Stage 5 — Validation.  [Built in Phase 5, 13 Oct 2026]
+Stage 5, Validation.  [Built in Phase 5, 13 Oct 2026]
 
-**This is the first stage that touches the test set.** Everything before it —
-binning, WOE, feature selection, the logistic fit — saw only the training half
+**This is the first stage that touches the test set.** Everything before it,
+binning, WOE, feature selection, the logistic fit, saw only the training half
 of the frozen split. The numbers produced here are therefore the first honest
 statement about how the model performs, and they get exactly one chance to be
 honest: every time a modelling decision is changed in response to a test number,
@@ -13,23 +13,23 @@ The three questions, and why all three are needed
 A credit committee asks three separate things, and a model can pass any one of
 them while failing the others:
 
-1. **Discrimination** — does the model separate good from bad? (KS, Gini/AUC)
-2. **Calibration** — are the predicted probabilities right in level, not just in
+1. **Discrimination**, does the model separate good from bad? (KS, Gini/AUC)
+2. **Calibration**, are the predicted probabilities right in level, not just in
    order? (reliability by band, Hosmer-Lemeshow style)
-3. **Stability** — does the score distribution look the same out of sample?
+3. **Stability**, does the score distribution look the same out of sample?
    (PSI)
 
 A model can rank perfectly and still be useless for pricing if every predicted
 PD is double the truth. It can be beautifully calibrated on average and rank no
 better than a coin. And it can do both on this sample and fall apart on next
-quarter's applicants. Reporting only AUC — the most common shortcut — answers
+quarter's applicants. Reporting only AUC, the most common shortcut, answers
 one question out of three.
 
 What is deliberately NOT done here
 ----------------------------------
 No threshold is tuned, no feature is dropped, no hyperparameter is chosen on
 these numbers. If the validation report is disappointing, the honest responses
-are to revisit the training-set work or to report the result as it stands — not
+are to revisit the training-set work or to report the result as it stands, not
 to adjust until the test number improves. That is the difference between
 validation and a second training run.
 
@@ -68,14 +68,14 @@ def ks_statistic(scores, target, higher_is_riskier=True):
     catching 40 percentage points more of the bads than of the goods.
 
     Industry bands for an application scorecard: below 0.20 is weak, 0.20-0.40 is
-    usual, above 0.50 is unusually good — and above 0.70 is a reason to look for
+    usual, above 0.50 is unusually good, and above 0.70 is a reason to look for
     leakage rather than to celebrate.
 
     Returns
     -------
     dict
         The statistic, the score at which it occurs, and the two cumulative
-        shares at that point — the cut-off a committee actually asks about.
+        shares at that point, the cut-off a committee actually asks about.
     """
     s = np.asarray(scores, dtype=float)
     y = np.asarray(target, dtype=int)
@@ -121,7 +121,7 @@ def auc_and_gini(scores, target, higher_is_riskier=True):
 
     risk = s if higher_is_riskier else -s
 
-    # Average ranks so tied scores are handled correctly — ties are common once
+    # Average ranks so tied scores are handled correctly, ties are common once
     # a scorecard rounds to whole points, and ignoring them inflates AUC.
     order = np.argsort(risk)
     ranks = np.empty(len(risk), dtype=float)
@@ -210,7 +210,7 @@ def hosmer_lemeshow(predicted_pd, target, n_bands=10):
     with observed and expected bad counts per band. Degrees of freedom are
     ``n_bands - 2``.
 
-    A LARGE statistic (small p-value) means poor calibration — the opposite
+    A LARGE statistic (small p-value) means poor calibration, the opposite
     direction to most tests, and a routine source of misreading. Note also that
     the test is weak on small samples: with 300 accounts it will pass almost
     anything, so it is reported next to the band table rather than instead of it.
@@ -250,7 +250,7 @@ def population_stability_index(expected, actual, n_bands=10):
     .. math:: \\text{PSI} = \\sum_b (\\%A_b - \\%E_b)\\,\\ln(\\%A_b / \\%E_b)
 
     Bands are cut on the **expected** distribution and then applied to the
-    actual one — that ordering is the whole point. Re-cutting bands on the
+    actual one, that ordering is the whole point. Re-cutting bands on the
     actual sample would make any two distributions look identical, because each
     would have 10% of itself in each of its own deciles.
 
@@ -296,8 +296,8 @@ def psi_verdict(psi):
     if psi < 0.10:
         return "stable"
     if psi < 0.25:
-        return "shift — monitor"
-    return "MAJOR SHIFT — consider redevelopment"
+        return "shift, monitor"
+    return "MAJOR SHIFT, consider redevelopment"
 
 
 # ===========================================================================
@@ -330,7 +330,7 @@ def rank_ordering(scores, target, n_bands=10, higher_is_riskier=True):
     # Always ordered lowest score to highest, which is how a score band table is
     # read. With a PD (higher = riskier) the bad rate should therefore RISE down
     # the table; with a points score (higher = safer) it should fall. Either is
-    # monotonic — what matters is that it does not turn around in the middle.
+    # monotonic, what matters is that it does not turn around in the middle.
     table = table.sort_values("mean_score").reset_index(drop=True)
 
     # Renumber 1..n by position, so "band 1" is always the lowest-score band
@@ -444,7 +444,7 @@ def evaluate(predicted_pd_train, target_train, predicted_pd_test, target_test,
 
 
 def validation_report(result):
-    """The validation report — the Phase 5 deliverable."""
+    """The validation report, the Phase 5 deliverable."""
     discrimination = result["discrimination"]
     checks = result["checks"]
     ks = discrimination["ks"]
@@ -479,12 +479,12 @@ def validation_report(result):
     hl = result["calibration"]["hosmer_lemeshow"]
     lines.append(f"    Hosmer-Lemeshow chi2 = {hl['chi_square']:.2f} "
                  f"(df {hl['degrees_of_freedom']}), p = {hl['p_value']:.4f}")
-    lines.append("    (a LOW p-value means POOR calibration — the opposite of "
+    lines.append("    (a LOW p-value means POOR calibration, the opposite of "
                  "most tests)")
 
     lines.append("")
     lines.append(f"  Stability: PSI = {result['stability']['psi']:.4f} "
-                 f"— {result['stability']['verdict']}")
+                 f", {result['stability']['verdict']}")
 
     lines.append("")
     ordering = result["rank_ordering"]
@@ -501,21 +501,21 @@ def validation_report(result):
         lines.append("  All validation checks passed.")
     else:
         if not checks["gini_above_minimum"]:
-            lines.append(f"  FAIL — test Gini below the {checks['min_gini']:.2f} "
+            lines.append(f"  FAIL, test Gini below the {checks['min_gini']:.2f} "
                          "minimum. The model does not discriminate well enough.")
         if not checks["no_large_gini_drop"]:
-            lines.append(f"  FAIL — Gini drops {discrimination['gini_drop']:.3f} "
+            lines.append(f"  FAIL, Gini drops {discrimination['gini_drop']:.3f} "
                          "from train to test. That is the signature of "
                          "overfitting; revisit the TRAINING work, not this report.")
         if not checks["psi_within_limit"]:
-            lines.append(f"  FAIL — PSI {result['stability']['psi']:.3f} above "
+            lines.append(f"  FAIL, PSI {result['stability']['psi']:.3f} above "
                          f"{checks['max_psi']:.2f}. The score distribution is "
                          "not stable out of sample.")
         if not checks["rank_ordering_monotonic"]:
-            lines.append("  FAIL — bad rate is not monotonic across score bands, "
+            lines.append("  FAIL, bad rate is not monotonic across score bands, "
                          "so cut-off policy cannot be defended on it.")
         if not checks["calibration_not_rejected"]:
-            lines.append("  WARNING — Hosmer-Lemeshow rejects calibration at 5%. "
+            lines.append("  WARNING, Hosmer-Lemeshow rejects calibration at 5%. "
                          "The ranking may still be sound; the LEVEL is off.")
 
     lines.append("")

@@ -1,5 +1,5 @@
 """
-Phase 2 tests — binning and coarse classing.
+Phase 2 tests, binning and coarse classing.
 
 Each test builds data with a known shape and asserts the binner does the right
 thing with it. If one fails, the name says which guarantee broke.
@@ -115,7 +115,7 @@ def test_thin_levels_are_merged_away(config):
     total = len(df)
     for b in spec["bins"]:
         assert b["count"] / total >= config["binning"]["min_bin_fraction"]
-    # Every original level is still mapped somewhere — nothing silently vanishes.
+    # Every original level is still mapped somewhere, nothing silently vanishes.
     assert set(spec["mapping"]) == set(df["purpose"].unique())
 
 
@@ -158,7 +158,7 @@ def test_apply_is_deterministic(config):
 
 def test_spec_survives_a_json_round_trip(config, tmp_path):
     """Infinite edges and numpy types must come back unchanged, or test scoring
-    would differ from training — the classic silent scorecard bug."""
+    would differ from training, the classic silent scorecard bug."""
     train = make_training_frame()
     spec = binning.fit_bins(train, config)
 
@@ -181,7 +181,7 @@ def test_fit_requires_the_target(config):
 
 
 def test_spec_fitted_on_train_is_unchanged_by_test_data(config):
-    """Applying to test must never alter the spec — no leakage through binning."""
+    """Applying to test must never alter the spec, no leakage through binning."""
     train = make_training_frame(n=800, seed=3)
     test = make_training_frame(n=400, seed=99)
 

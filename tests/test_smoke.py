@@ -85,7 +85,7 @@ def test_config_schema_is_a_subset_of_what_the_raw_file_contains():
 
     These were identical until 20 Oct 2026, when `personal_status_sex` was
     removed from the schema as a protected characteristic. The file still
-    contains it — the source data is not edited — so the right relationship is
+    contains it, the source data is not edited, so the right relationship is
     now subset, not equality.
 
     Both directions still matter:

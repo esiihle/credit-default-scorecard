@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 8 — generate every chart the README reports, from one real pipeline run.
+Phase 8, generate every chart the README reports, from one real pipeline run.
 
 Running
 
@@ -59,10 +59,10 @@ CHARTS = {
 
 CHART_PURPOSE = {
     "separation": "score distributions of repaid vs defaulted accounts, with "
-                  "the cutoff — does the card separate?",
+                  "the cutoff, does the card separate?",
     "discrimination": "ROC curve and KS plot, the two standard discrimination "
                       "views side by side",
-    "points": "the scorecard itself — points awarded by characteristic and bin",
+    "points": "the scorecard itself, points awarded by characteristic and bin",
     "calibration": "predicted vs realised default rate by score band",
     "benchmark": "scorecard vs gradient boosting: the accuracy bought and the "
                  "overfitting paid for it",
@@ -98,7 +98,7 @@ def new_figure(figsize, ncols=1):
     colliding at any figure size. Hand-placed text in figure coordinates works
     at one size and silently breaks at the next.
 
-    Do not call fig.autofmt_xdate() or fig.subplots_adjust() on these figures —
+    Do not call fig.autofmt_xdate() or fig.subplots_adjust() on these figures,
     both switch constrained layout off, and the first symptom is a subtitle
     printed through a title.
     """
@@ -124,7 +124,7 @@ def finish(fig, ax_or_axes, path, illustrative, title=None, subtitle=None):
                           color=INK_SOFT, fontweight="normal", pad=8)
     if illustrative:
         for ax in axes:
-            ax.text(0.5, 0.5, "ILLUSTRATIVE\nbundled sample — not results",
+            ax.text(0.5, 0.5, "ILLUSTRATIVE\nbundled sample, not results",
                     transform=ax.transAxes, ha="center", va="center",
                     fontsize=14, fontweight="bold", color=BAD, alpha=0.30,
                     rotation=18, zorder=50)
@@ -230,7 +230,7 @@ def chart_discrimination(data, illustrative, out_dir):
     left.set_xlim(0, 1); left.set_ylim(0, 1)
     left.set_xlabel("false positive rate")
     left.set_ylabel("true positive rate")
-    left.set_title(f"ROC — AUC {numbers['auc']:.4f} · Gini {numbers['gini']:.4f}",
+    left.set_title(f"ROC, AUC {numbers['auc']:.4f} · Gini {numbers['gini']:.4f}",
                    fontsize=10, color=INK_SOFT, pad=8)
     left.grid(alpha=0.6); left.set_axisbelow(True)
     left.legend(loc="lower right")
@@ -268,7 +268,7 @@ def chart_discrimination(data, illustrative, out_dir):
     right.set_xlim(0, 1); right.set_ylim(0, 1)
     right.set_xlabel("share of accounts, worst score first")
     right.set_ylabel("cumulative share of group")
-    right.set_title("KS — the widest gap between the two curves",
+    right.set_title("KS, the widest gap between the two curves",
                     fontsize=10, color=INK_SOFT, pad=8)
     right.grid(alpha=0.6); right.set_axisbelow(True)
     right.legend(loc="lower right")
@@ -298,7 +298,7 @@ def chart_points(data, illustrative, out_dir):
 
     # One row per bin, grouped by characteristic, with the characteristic name
     # as its own bold header row. The name used to sit in the left margin at a
-    # fixed offset, which collided with the longest bin labels — and the longest
+    # fixed offset, which collided with the longest bin labels, and the longest
     # labels are exactly the ones a reader most needs to read.
     def shorten(label, limit=52):
         label = str(label)
@@ -350,7 +350,7 @@ def chart_points(data, illustrative, out_dir):
            subtitle=f"PDO {constants['pdo']:.0f} · base score "
                     f"{constants['base_score']:.0f} at {constants['base_odds']:.0f}:1 "
                     f"· attainable range {constants['score_min']:.0f}"
-                    f"–{constants['score_max']:.0f}")
+                    f", {constants['score_max']:.0f}")
 
 
 # --- Chart 4: calibration --------------------------------------------------
@@ -389,7 +389,7 @@ def chart_calibration(data, illustrative, out_dir):
     ax.legend(loc="upper left")
 
     hl = data["numbers"].get("hosmer_lemeshow_p")
-    subtitle = (f"Hosmer-Lemeshow p = {hl:.3f} — "
+    subtitle = (f"Hosmer-Lemeshow p = {hl:.3f}, "
                 + ("calibration not rejected" if hl is not None and hl > 0.05
                    else "calibration rejected at 5%")) if hl is not None else None
 
@@ -409,9 +409,9 @@ def chart_benchmark(data, illustrative, out_dir):
     """
     numbers = data["numbers"]
     panels = [
-        ("Test Gini", "discrimination on unseen accounts — higher is better",
+        ("Test Gini", "discrimination on unseen accounts, higher is better",
          numbers.get("gini"), numbers.get("benchmark_test_gini")),
-        ("Train → test Gini drop", "how much was memorised — LOWER is better",
+        ("Train → test Gini drop", "how much was memorised, LOWER is better",
          numbers.get("gini_drop"), numbers.get("benchmark_gini_drop")),
     ]
 
@@ -441,8 +441,8 @@ def chart_benchmark(data, illustrative, out_dir):
     handles = [plt.Rectangle((0, 0), 1, 1, color=BLUE),
                plt.Rectangle((0, 0), 1, 1, color=ORANGE)]
     fig.legend(handles,
-               ["scorecard — logistic on WOE, with a points table",
-                "benchmark — gradient boosting, no reason codes"],
+               ["scorecard, logistic on WOE, with a points table",
+                "benchmark, gradient boosting, no reason codes"],
                loc="outside lower center", ncol=1, frameon=False, fontsize=9)
 
     finish(fig, axes, out_dir / CHARTS["benchmark"], illustrative,
@@ -472,7 +472,7 @@ def refuse_illustrative_output(out_dir, allow_sample):
     """Stop sample-built charts from ever landing in the published folder.
 
     The ILLUSTRATIVE stamp was a warning, and a warning is something a person
-    can commit anyway — on 21 Oct 2026 exactly that happened on the companion
+    can commit anyway, on 21 Oct 2026 exactly that happened on the companion
     football project: stamped charts from a 12-match sample were committed and
     shown on the repository's front page, with two charts missing entirely.
 
@@ -488,7 +488,7 @@ def refuse_illustrative_output(out_dir, allow_sample):
         targets_published = False
 
     if targets_published and not allow_sample:
-        print("\n  REFUSED — these charts would be built from the bundled sample,")
+        print("\n  REFUSED, these charts would be built from the bundled sample,")
         print("  and docs/charts/ is what the README publishes.")
         print()
         print("  Either:")
@@ -576,14 +576,14 @@ def gather(config, use_sample, verbose=False):
     numbers["ks_on_rounded_score"] = float(validate.ks_statistic(
         test_scores, test["is_default"].to_numpy(), higher_is_riskier=False)["ks"])
     # Signed: rounded minus continuous. A positive value does NOT mean rounding
-    # improved the model — coarsening a score creates ties, and KS on a coarser
+    # improved the model, coarsening a score creates ties, and KS on a coarser
     # scale can land either side of the continuous figure by chance. It is
     # reported so the size of the wobble is visible rather than assumed away.
     numbers["ks_shift_from_rounding"] = float(
         numbers["ks_on_rounded_score"] - numbers["ks"])
 
     # A cutoff to draw on the separation chart: the band nearest 70% approval,
-    # chosen for illustration only — the real cutoff is a business decision.
+    # chosen for illustration only, the real cutoff is a business decision.
     cutoffs = scaling.cutoff_table(test_scores, test["is_default"].to_numpy(),
                                    scorecard)
     numbers["illustrative_cutoff"] = None
@@ -650,7 +650,7 @@ def main():
         print("\nCharts this script writes into docs/charts/:\n")
         for key, filename in CHARTS.items():
             print(f"  {filename:<30} {CHART_PURPOSE[key]}")
-        print("\nPlus numbers.json — the headline validation figures, which"
+        print("\nPlus numbers.json, the headline validation figures, which"
               "\ntests/test_docs.py checks the README against.\n")
         return 0
 
@@ -658,7 +658,7 @@ def main():
     set_seed(config.get("seed", 42))
     out_dir = Path(args.out) if args.out else REPO_ROOT / "docs" / "charts"
 
-    print("\nCredit scorecard — building the README charts\n")
+    print("\nCredit scorecard, building the README charts\n")
 
     # Checked BEFORE any work: a run that cannot produce publishable charts
     # should say so in a second, not after fitting every stage.
@@ -681,7 +681,7 @@ def main():
     print()
     if data["illustrative"]:
         print("  THESE CHARTS ARE STAMPED ILLUSTRATIVE. Do not commit them as")
-        print("  results — download german.data and run again.")
+        print("  results, download german.data and run again.")
     else:
         print("  Real data. Commit docs/charts/ and run pytest tests/test_docs.py")
         print("  to check the README's numbers against numbers.json.")

@@ -1,8 +1,8 @@
 r"""
-Stage 7 — Applicant scorer & reason codes.  [Built in Phase 7, 18 Oct 2026]
+Stage 7, Applicant scorer & reason codes.  [Built in Phase 7, 18 Oct 2026]
 
 Given one applicant, return their score, their probability of default, and
-**reason codes** — the characteristics where they lost the most points.
+**reason codes**, the characteristics where they lost the most points.
 
 Why reason codes are a legal artefact, not a nice-to-have
 ---------------------------------------------------------
@@ -13,7 +13,7 @@ no" is not an answer in either jurisdiction.
 
 This is the clearest practical reason the whole project uses a points table
 rather than a gradient-boosted model. Reason codes here are not an
-approximation, a surrogate model, or a SHAP value — they are **read directly off
+approximation, a surrogate model, or a SHAP value, they are **read directly off
 the arithmetic that produced the decision**. The sum of the points *is* the
 score, so the characteristic that cost the most points *is* the reason.
 
@@ -33,7 +33,7 @@ the best attainable bin is the only reference that answers it.
 
 A characteristic where the applicant already holds the best bin has lost nothing
 and can never be a reason code. That falls out of the arithmetic rather than
-needing a special case — which is the sort of thing worth checking, so
+needing a special case, which is the sort of thing worth checking, so
 `test_best_possible_applicant_has_no_reason_codes` does.
 
 See docs/methodology.md section 7.
@@ -54,7 +54,7 @@ class FairLendingError(Exception):
     """Raised when an explanation would cite a protected characteristic.
 
     A distinct exception type because this is not a bug in the data or the
-    arithmetic — the code is working correctly. It means the MODEL contains a
+    arithmetic, the code is working correctly. It means the MODEL contains a
     characteristic that may not lawfully drive a credit decision, and the only
     real fix is upstream: remove it from the feature set and refit.
     """
@@ -69,7 +69,7 @@ def applicant_to_frame(applicant, config=None):
 
     Missing attributes are left as NaN rather than guessed. Phase 2's binning
     sends them to the ``MISSING`` bin and Phase 3 gives that bin its own WOE, so
-    an incomplete application is scoreable — which it has to be, because
+    an incomplete application is scoreable, which it has to be, because
     incomplete applications are the normal case.
     """
     config = config or {}
@@ -162,7 +162,7 @@ def reason_codes(breakdown, top_n=4, minimum_points_lost=1.0, config=None):
 
     Only characteristics that actually cost points qualify. A characteristic
     where the applicant already holds the best bin has lost nothing and is
-    excluded — a reason code saying "your perfect credit history counted against
+    excluded, a reason code saying "your perfect credit history counted against
     you" would be worse than no notice at all.
 
     ``minimum_points_lost`` suppresses trivia: being one point short of the best
@@ -174,12 +174,12 @@ def reason_codes(breakdown, top_n=4, minimum_points_lost=1.0, config=None):
     reason for a credit decision. If one would appear, the behaviour is set by
     ``fair_lending.on_protected_reason_code``:
 
-    * ``refuse`` (the default) — raise `FairLendingError`. An explanation that
+    * ``refuse`` (the default), raise `FairLendingError`. An explanation that
       cannot lawfully be given should not be produced at all.
-    * ``warn`` — suppress the code and attach a warning.
+    * ``warn``, suppress the code and attach a warning.
 
     Suppressing the *notice* does not make the model lawful: the characteristic
-    is still driving the score. The only real fix is upstream — remove it from
+    is still driving the score. The only real fix is upstream, remove it from
     the feature set and refit. The error says so.
     """
     cfg = (config or {}).get("fair_lending", {})
@@ -197,7 +197,7 @@ def reason_codes(breakdown, top_n=4, minimum_points_lost=1.0, config=None):
                 "lawfully drive a credit decision (ECOA / Regulation B in the "
                 "US; the National Credit Act and Equality Act in South "
                 "Africa).\n"
-                "  Suppressing the notice would NOT make the model lawful — the "
+                "  Suppressing the notice would NOT make the model lawful, the "
                 "characteristic is still driving the score.\n"
                 "  Fix it upstream: drop it from schema.categorical_columns (or "
                 "numeric_columns), refit from Phase 2, and re-validate."

@@ -1,5 +1,5 @@
 # =============================================================================
-# Credit Default Scorecard configuration — the single source of truth for a run.
+# Credit Default Scorecard configuration: the single source of truth for a run.
 # Nothing that changes behaviour is hard-coded in the source; it lives here so
 # the same command always reproduces the same result.
 # =============================================================================
@@ -14,7 +14,7 @@ data:
 
   # --- Real data source (settled 30 Sep 2026) -------------------------------
   # UCI Statlog (German Credit), dataset 144. The file is space-delimited, has
-  # NO header row, and codes every categorical value as A11, A34, ... — so the
+  # NO header row, and codes every categorical value as A11, A34, ..., so the
   # column names and code table live in src/load.py and are applied on load.
   source: "UCI Statlog (German Credit Data), dataset id 144"
   source_page: "https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data"
@@ -42,7 +42,7 @@ schema:
     - savings_status
     - employment_since
     # personal_status_sex REMOVED 20 Oct 2026. It encodes SEX, and Phase 7's
-    # scorer surfaced it as the fourth reason code on a live explanation —
+    # scorer surfaced it as the fourth reason code on a live explanation,
     # an adverse-action notice citing a protected characteristic. It stays in
     # fair_lending.protected_characteristics below so the guard keeps watch if
     # anyone ever puts it back.
@@ -56,7 +56,7 @@ schema:
     # similar) that came from a run never made on real data. They were wrong by
     # roughly a factor of three and nothing in the repository could contradict
     # them, because a number typed into a comment is a number nobody can check.
-    # Corrected 22 Oct 2026 — see PROGRESS.md.
+    # Corrected 22 Oct 2026, see PROGRESS.md.
     - other_debtors
     - property
     - other_installment_plans
@@ -82,7 +82,7 @@ validation:
 split:
   test_size: 0.30
   stratify: true               # keep the same bad rate in both halves
-  # Out-of-time slice: NOT possible with this dataset — German Credit carries no
+  # Out-of-time slice: NOT possible with this dataset, German Credit carries no
   # application or performance date. Stability is therefore tested in Phase 5 with
   # PSI across the random split, and the limitation is stated in the methodology
   # rather than hidden.
@@ -103,7 +103,7 @@ binning:
 woe:
   iv_min: 0.02                  # drop features weaker than this
   iv_leakage_flag: 0.50         # investigate features stronger than this for leakage
-  spec_filename: woe_spec.json  # frozen WOE tables — what a model validator reads
+  spec_filename: woe_spec.json  # frozen WOE tables, what a model validator reads
   woe_matrix_filename: train_woe.csv
 
 # --- Phase 4: logistic PD model -----------------------------------------------
@@ -117,7 +117,7 @@ model:
   # is the event count, not the row count: below ~10 events per variable the
   # standard errors are unreliable and the model may not be identified at all.
   # Raising the feature count or lowering this number to silence an error is the
-  # wrong fix — get more data instead.
+  # wrong fix, get more data instead.
   min_events_per_variable: 10.0
   # Once the feature set has settled, turn this on: a positive coefficient then
   # stops the run instead of being reported. Left off during selection so the
@@ -150,7 +150,7 @@ fair_lending:
 
 # --- Phase 5: validation on the held-out set ----------------------------------
 # These are acceptance thresholds, not tuning knobs. Nothing in the validation
-# report may be used to choose a feature, a threshold or a hyperparameter — the
+# report may be used to choose a feature, a threshold or a hyperparameter: the
 # moment it is, the test set becomes training data.
 validation:
   score_bands: 10              # deciles for calibration and rank ordering
@@ -160,10 +160,10 @@ validation:
   max_gini_drop: 0.15         # train -> test drop larger than this = overfitting
   report_filename: validation.json
 
-# Score scaling (Phase 6) — standard PDO / factor / offset.
+# Score scaling (Phase 6): standard PDO / factor / offset.
 scaling:
   # PDO = "points to double the odds". With 20, gaining 20 points doubles the
-  # good:bad odds — the one sentence that explains a scorecard to someone who
+  # good:bad odds, the one sentence that explains a scorecard to someone who
   # will never see a logistic regression.
   pdo: 20
   base_score: 600              # score at the reference odds
@@ -175,7 +175,7 @@ scaling:
   round_points: true
   # Admissible disagreement between the points table and the model, PER
   # CHARACTERISTIC. Each characteristic's points round independently, so each
-  # contributes at most half a point — a fixed total would fail a card with many
+  # contributes at most half a point, a fixed total would fail a card with many
   # characteristics and pass a broken one with few.
   verification_tolerance_per_feature: 0.5
   scorecard_filename: scorecard.json
@@ -185,7 +185,7 @@ scaling:
 # competitor: a heavily tuned GBM on 700 rows would mostly be measuring how much
 # hyperparameter search the test set can absorb.
 #
-# scikit-learn's HistGradientBoostingClassifier rather than LightGBM — same
+# scikit-learn's HistGradientBoostingClassifier rather than LightGBM: same
 # histogram-based family, already a dependency, and it handles categoricals and
 # missing values natively so no imputation choice can tilt the comparison.
 benchmark:

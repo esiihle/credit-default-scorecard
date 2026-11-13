@@ -1,5 +1,5 @@
 r"""
-Stage 8 — Gradient-boosted benchmark.  [Built in Phase 7, 20 Oct 2026]
+Stage 8, Gradient-boosted benchmark.  [Built in Phase 7, 20 Oct 2026]
 
 One question: **what does the interpretability cost?**
 
@@ -11,7 +11,7 @@ small.
 
 So a gradient-boosted model is fitted on the same split, and the gap is reported.
 If the GBM wins by a lot, that is a finding about the cost of the choice, not a
-reason to abandon it — but a candidate who cannot state the number has not
+reason to abandon it, but a candidate who cannot state the number has not
 really made the choice.
 
 What makes this a fair comparison
@@ -31,8 +31,8 @@ Three things, each easy to get wrong in a way that flatters one side:
 
 Why scikit-learn rather than LightGBM or XGBoost
 ------------------------------------------------
-`HistGradientBoostingClassifier` is a histogram-based gradient booster — the same
-family and approach as LightGBM — and it ships with scikit-learn, which is
+`HistGradientBoostingClassifier` is a histogram-based gradient booster, the same
+family and approach as LightGBM, and it ships with scikit-learn, which is
 already a dependency. Adding a library to produce a benchmark number is a poor
 trade when the benchmark is a comparison rather than a product. It handles
 categoricals and missing values natively, which also keeps the preparation
@@ -56,7 +56,7 @@ def prepare_features(frame, config=None, drop_protected=True):
     """Raw features for the tree model, with protected characteristics removed.
 
     Categoricals become pandas ``category`` dtype, which
-    `HistGradientBoostingClassifier` handles natively — no one-hot expansion and
+    `HistGradientBoostingClassifier` handles natively, no one-hot expansion and
     no imputation decisions that could tilt the comparison.
     """
     config = config or {}
@@ -263,13 +263,13 @@ def benchmark_report(comparison):
                      "itself. The")
         lines.append("  interpretability is free here.")
     elif gap < 0.05:
-        lines.append(f"  The benchmark wins by {gap:.4f} Gini — a small margin.")
+        lines.append(f"  The benchmark wins by {gap:.4f} Gini, a small margin.")
         lines.append("  That is a cheap price for everything in the list above, "
                      "and it is the")
         lines.append("  number to quote when asked why a logistic model was "
                      "chosen.")
     else:
-        lines.append(f"  The benchmark wins by {gap:.4f} Gini — a MATERIAL "
+        lines.append(f"  The benchmark wins by {gap:.4f} Gini, a MATERIAL "
                      "margin.")
         lines.append("  This is a real finding and should be reported, not "
                      "buried. The honest")
@@ -284,7 +284,7 @@ def benchmark_report(comparison):
                      "from train to test")
         lines.append("  than the scorecard does, so part of its advantage is "
                      "variance rather than")
-        lines.append("  signal — and variance is the first thing to disappear "
+        lines.append("  signal, and variance is the first thing to disappear "
                      "next quarter.")
 
     return "\n".join(lines)

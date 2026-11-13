@@ -1,5 +1,5 @@
 """
-Phase 1 tests — validation, target definition and the frozen split.
+Phase 1 tests, validation, target definition and the frozen split.
 
 Behaviour tests, not smoke tests: each one creates a specific situation and
 asserts what the code does about it. If one fails, its name tells you what broke.
@@ -148,7 +148,7 @@ def test_no_applicant_appears_in_both_halves(config):
 
 
 def test_split_is_reproducible_from_the_seed(config):
-    """Same seed, same split — proven by fingerprint, not by eye."""
+    """Same seed, same split, proven by fingerprint, not by eye."""
     df = load.to_analysis_table(load.define_target(make_applicants(500), config), config)
 
     first = load.split_manifest(*load.split_train_test(df, config), config)

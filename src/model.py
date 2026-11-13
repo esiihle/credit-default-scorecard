@@ -1,5 +1,5 @@
 """
-Stage 4 — PD model.  [Built in Phase 4, 10 Oct 2026]
+Stage 4, PD model.  [Built in Phase 4, 10 Oct 2026]
 
 Logistic regression on the WOE-transformed features:
 
@@ -15,7 +15,7 @@ That single property is what makes Phase 6 possible: a linear score can be
 rescaled into a points table, and a points table is something a customer can be
 shown, a credit committee can sign off, and a regulator can audit. Phase 8
 benchmarks a gradient-boosted model precisely to measure what that
-interpretability costs — and reporting that number honestly is the point, not
+interpretability costs, and reporting that number honestly is the point, not
 hiding it.
 
 The sign check is the headline diagnostic
@@ -28,7 +28,7 @@ A positive coefficient is not a curiosity. It means either the feature's
 relationship reverses once other variables are in the model (usually
 multicollinearity), or a sign has been flipped somewhere upstream. A scorecard
 with a flipped sign ranks applicants backwards and still produces entirely
-plausible output — which is why this is asserted, not eyeballed.
+plausible output, which is why this is asserted, not eyeballed.
 
 What else is checked, and why a credit committee asks for each
 -------------------------------------------------------------
@@ -156,7 +156,7 @@ def fit_pd_model(woe_features, target=None, config=None, enforce_signs=None):
     Parameters
     ----------
     woe_features : pandas.DataFrame
-        WOE-encoded TRAINING features — one numeric column per feature, as
+        WOE-encoded TRAINING features, one numeric column per feature, as
         produced by `woe.apply_woe`.
     target : array-like
         1 = default. Required.
@@ -165,7 +165,7 @@ def fit_pd_model(woe_features, target=None, config=None, enforce_signs=None):
         ``model.bootstrap_resamples``, ``model.enforce_negative_signs``.
     enforce_signs : bool | None
         Overrides the config. When True, a positive coefficient raises instead of
-        being reported — appropriate once the feature set has settled.
+        being reported, appropriate once the feature set has settled.
 
     Returns
     -------
@@ -196,11 +196,11 @@ def fit_pd_model(woe_features, target=None, config=None, enforce_signs=None):
     if y.nunique() < 2:
         raise ModelError("The target has only one class; a PD model is undefined.")
     if X.shape[1] == 0:
-        raise ModelError("No features to fit on — Phase 3 selected nothing.")
+        raise ModelError("No features to fit on, Phase 3 selected nothing.")
 
     # --- Is there enough data to fit this many parameters at all? --------
     # The binding constraint on a logistic regression is not the row count, it
-    # is the number of EVENTS — here, bads. The long-standing rule of thumb in
+    # is the number of EVENTS, here, bads. The long-standing rule of thumb in
     # credit risk and biostatistics is at least 10 events per variable (EPV);
     # below that, standard errors are unreliable and the fit may not be
     # identified at all.
@@ -216,7 +216,7 @@ def fit_pd_model(woe_features, target=None, config=None, enforce_signs=None):
 
     if n_events < 2:
         raise ModelError(
-            f"Only {n_events} event(s) in the minority class — a PD model "
+            f"Only {n_events} event(s) in the minority class, a PD model "
             "cannot be fitted."
         )
 
@@ -229,7 +229,7 @@ def fit_pd_model(woe_features, target=None, config=None, enforce_signs=None):
             "  Most likely cause: the pipeline is running on the bundled sample "
             "rather than the real dataset.\n"
             "  Fix: download the real data to data/raw/, or reduce the feature "
-            "count — do not lower this threshold to make the error go away."
+            "count, do not lower this threshold to make the error go away."
         )
 
     design = sm.add_constant(X, has_constant="add")
@@ -244,7 +244,7 @@ def fit_pd_model(woe_features, target=None, config=None, enforce_signs=None):
     except np.linalg.LinAlgError as error:
         raise ModelError(
             f"The logistic fit failed ({error}). The Hessian is singular, which "
-            "means the parameters are not identified — usually too many "
+            "means the parameters are not identified, usually too many "
             f"features ({X.shape[1]}) for the data ({len(y)} rows, "
             f"{n_events} events), or two features that are near-duplicates. "
             "Check the VIF table and reduce the feature set."
@@ -252,7 +252,7 @@ def fit_pd_model(woe_features, target=None, config=None, enforce_signs=None):
     except Exception as error:
         raise ModelError(
             f"The logistic fit failed: {error}. With {X.shape[1]} features and "
-            f"{n_events} events this is most likely perfect separation — some "
+            f"{n_events} events this is most likely perfect separation, some "
             "combination of features predicts the outcome exactly, which a "
             "logistic regression cannot fit with finite coefficients."
         ) from error
@@ -260,8 +260,8 @@ def fit_pd_model(woe_features, target=None, config=None, enforce_signs=None):
     # Even when the optimiser returns, the fit can be degenerate. Two symptoms,
     # and it is worth knowing both because they look nothing alike:
     #
-    #   * NaN standard errors — the Hessian could not be inverted at all.
-    #   * ENORMOUS standard errors — the usual signature of perfect separation.
+    #   * NaN standard errors, the Hessian could not be inverted at all.
+    #   * ENORMOUS standard errors, the usual signature of perfect separation.
     #     A feature that splits the classes exactly has no finite best
     #     coefficient, so the optimiser walks off toward infinity and statsmodels
     #     reports, say, a coefficient of -13.4 with a standard error of 16,342.
@@ -379,7 +379,7 @@ def drop_feature(model_spec, feature):
 
     Feature selection in a scorecard is iterative: fit, read the diagnostics,
     drop the worst offender, refit. This helper keeps that loop explicit rather
-    than burying it in an automatic stepwise routine — which would hide exactly
+    than burying it in an automatic stepwise routine, which would hide exactly
     the judgement a credit committee wants to see.
     """
     return [f for f in model_spec["features"] if f != feature]
@@ -390,7 +390,7 @@ def drop_feature(model_spec, feature):
 # ===========================================================================
 
 def model_report(model):
-    """The coefficient table with diagnostics — the Phase 4 deliverable."""
+    """The coefficient table with diagnostics, the Phase 4 deliverable."""
     stats = model["fit_statistics"]
     checks = model["checks"]
 
@@ -421,19 +421,19 @@ def model_report(model):
         lines.append("  All diagnostics passed.")
     else:
         if checks["wrong_sign"]:
-            lines.append(f"  FAIL — positive coefficient (ranks backwards): "
+            lines.append(f"  FAIL, positive coefficient (ranks backwards): "
                          f"{', '.join(checks['wrong_sign'])}")
         if checks["insignificant"]:
-            lines.append(f"  WARNING — not significant at p < {checks['p_value_max']}: "
+            lines.append(f"  WARNING, not significant at p < {checks['p_value_max']}: "
                          f"{', '.join(checks['insignificant'])}")
         if checks["collinear"]:
-            lines.append(f"  WARNING — VIF above {checks['vif_max']} "
+            lines.append(f"  WARNING, VIF above {checks['vif_max']} "
                          f"(features overlap): {', '.join(checks['collinear'])}")
         if checks["unstable_sign"]:
-            lines.append(f"  WARNING — sign not stable across bootstrap resamples: "
+            lines.append(f"  WARNING, sign not stable across bootstrap resamples: "
                          f"{', '.join(checks['unstable_sign'])}")
         lines.append("  Next step: drop the worst offender, refit, re-read. "
-                     "Do not automate this — the judgement is the deliverable.")
+                     "Do not automate this, the judgement is the deliverable.")
 
     return "\n".join(lines)
 

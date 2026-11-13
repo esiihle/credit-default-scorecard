@@ -1,5 +1,5 @@
 """
-Stage 3 — Weight of Evidence & Information Value.  [Built in Phase 3, 9 Oct 2026]
+Stage 3, Weight of Evidence & Information Value.  [Built in Phase 3, 9 Oct 2026]
 
 This stage turns bins into numbers the model can use, and decides which features
 are worth using at all.
@@ -18,7 +18,7 @@ the book as a whole?*
 A bin holding a disproportionate share of goods scores positive. Because Phase 1
 defined 1 = default, the logistic coefficients in Phase 4 are therefore expected
 to come out **negative**. If they come out positive, something has been flipped
-and the scorecard is ranking backwards — which is why Phase 4 asserts the sign
+and the scorecard is ranking backwards, which is why Phase 4 asserts the sign
 rather than hoping.
 
 Information Value
@@ -33,16 +33,16 @@ The conventional bands (used in `config.yaml`):
 ======================  ===========================================
 IV                      Interpretation
 ======================  ===========================================
-< 0.02                  useless — drop
+< 0.02                  useless, drop
 0.02 - 0.1              weak
 0.1 - 0.3               medium
 0.3 - 0.5               strong
-> 0.5                   suspiciously strong — check for leakage
+> 0.5                   suspiciously strong, check for leakage
 ======================  ===========================================
 
 That last band matters more than it looks. In a real bank build, a feature with
 IV above 0.5 is usually not a brilliant predictor; it is usually a field that
-encodes the outcome — a collections flag, a write-off date, a post-default
+encodes the outcome, a collections flag, a write-off date, a post-default
 status. Investigating it is not pedantry, it is the difference between a model
 that works and one that was reading the answer.
 
@@ -67,7 +67,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # A bin that appears at scoring time but never appeared in training gets this
-# WOE. See `apply_woe` for the reasoning — it is a real decision, not a default.
+# WOE. See `apply_woe` for the reasoning: it is a real decision, not a default.
 NEUTRAL_WOE = 0.0
 
 # Added to the good and bad counts of a bin that has none of one class, so the
@@ -98,7 +98,7 @@ def woe_table(binned_values, target):
     -------
     pandas.DataFrame
         One row per bin: accounts, goods, bads, pct_good, pct_bad, woe, iv_part,
-        bad_rate, and ``adjusted`` — True where the zero-cell correction fired.
+        bad_rate, and ``adjusted``, True where the zero-cell correction fired.
     """
     frame = pd.DataFrame({
         "bin": pd.Series(binned_values).astype(str).values,
@@ -152,7 +152,7 @@ def iv_band(iv, config=None):
         return "medium"
     if iv < leakage:
         return "strong"
-    return "SUSPICIOUS — check leakage"
+    return "SUSPICIOUS, check leakage"
 
 
 # ===========================================================================
@@ -165,7 +165,7 @@ def compute_woe_iv(binned, target=None, config=None, bin_order=None):
     Parameters
     ----------
     binned : pandas.DataFrame
-        Output of `binning.apply_bins` on the TRAINING data — columns named
+        Output of `binning.apply_bins` on the TRAINING data, columns named
         ``<feature>_bin``.
     target : array-like
         1 = default. Required.
@@ -183,7 +183,7 @@ def compute_woe_iv(binned, target=None, config=None, bin_order=None):
     """
     if target is None:
         raise WOEError(
-            "WOE needs the target — it measures separation between good and bad, "
+            "WOE needs the target, it measures separation between good and bad, "
             "so it cannot be computed from the features alone."
         )
 
@@ -242,7 +242,7 @@ def selected_features(spec):
 
 
 def apply_woe(binned, spec, features=None):
-    """Replace bin labels with their WOE values — the model's actual input.
+    """Replace bin labels with their WOE values, the model's actual input.
 
     A bin that was never seen during fitting (a new product code arriving in live
     data, or a rare level that only occurs in test) is given
@@ -254,7 +254,7 @@ def apply_woe(binned, spec, features=None):
     the worst bin's WOE punishes an applicant for a data gap that is the lender's
     fault, and assigning the best bin's WOE is exploitable by anyone who learns
     which values fall outside the training set. The honest cost of 0 is that a
-    genuinely risky unseen level is scored as neutral — which is why the count of
+    genuinely risky unseen level is scored as neutral, which is why the count of
     unseen bins is returned, and why it belongs on a monitoring report rather than
     being swallowed.
 
@@ -292,7 +292,7 @@ def apply_woe(binned, spec, features=None):
 # ===========================================================================
 
 def iv_ranking(spec):
-    """The IV ranking table — a Phase 3 deliverable in its own right."""
+    """The IV ranking table, a Phase 3 deliverable in its own right."""
     rows = [{
         "feature": feature,
         "iv": definition["iv"],

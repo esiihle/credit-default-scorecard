@@ -1,26 +1,24 @@
-# Methodology — Credit Default Scorecard
+# Methodology: Credit Default Scorecard
 
-> **Living document.** This is the mathematical spine of the scorecard. It is
-> scaffolded now and filled in as each phase lands (see `ROADMAP.md`). Each
-> section carries a **Status** tag so the reader always knows what is settled and
-> what is pending. Metrics are reported only from held-out validation.
+> The mathematical spine of the scorecard. I wrote each section as its phase
+> landed, so the document and the code could not drift apart. Every metric here
+> is reported from held-out validation.
 
 ---
 
-## 1. Data & target definition
-**Status: 🟡 skeleton — finalised in Phase 1.**
+## 1. Data and target definition
 
 ### 1.1 Source (settled 30 Sep 2026)
 
-**UCI Statlog (German Credit Data)**, dataset id 144 — 1,000 applicants, 20
+**UCI Statlog (German Credit Data)**, dataset id 144, 1,000 applicants, 20
 attributes, binary good/bad outcome. Downloaded as `german.data` from
 `https://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/german.data`.
 
 The file is **space-delimited, has no header row**, and codes every categorical
 value as `A11`, `A34`, `A143` and so on. The column order and the full code
 table therefore live in `src/load.py` and are applied at load time, so every
-later stage — binning, WOE, the points table, the reason codes an applicant
-would see — reads in plain English. An unrecognised code raises rather than
+later stage, binning, WOE, the points table, the reason codes an applicant
+would see, reads in plain English. An unrecognised code raises rather than
 passing through, because a stray code would silently become a junk bin in
 Phase 2.
 
@@ -31,79 +29,20 @@ optional follow-up once this build is complete.
 
 - **The published code table is disputed.** Grömping (2019) showed that the
   widely used UCI code table mislabels several attribute levels, and released a
-  corrected version ("South German Credit"). We use the standard UCI coding so
+  corrected version ("South German Credit"). I use the standard UCI coding so
   the work is comparable with the published literature, and flag it here. The
   issue affects the *interpretation* of certain levels, not the mechanics of the
   scorecard.
 - **Selection bias by construction.** Applicants in this data were all granted
   credit, so it describes accepted applicants only. Reject inference is the
-  standard bank remedy and is out of scope here — but the limitation is stated
-  rather than glossed over.
+  standard bank remedy and is out of scope here, but the limitation is stated
+  rather than hidden.
 - **Vintage.** The loans date from the 1970s and are denominated in Deutsche
   Mark. The methodology transfers; the coefficients do not.
 - **`personal_status_sex` encodes sex**, a protected attribute under fair-lending
   rules. It is still *loaded*, so the data stays faithful to source, but it was
-  **removed from the model on 20 Oct 2026** — see §7.3 for how Phase 7 forced the
+  **removed from the model on 20 Oct 2026**, see §7.3 for how Phase 7 forced the
   decision, and §1.6 for the measured cost.
-
-### 1.6 Cost of removing the protected characteristic  *(20 Oct 2026; measurement corrected 22 Oct)*
-
-`personal_status_sex` was dropped from `schema.categorical_columns`. It remains
-listed under `fair_lending.protected_characteristics`, so the Phase 7 guard keeps
-watch if anyone ever puts it back.
-
-**What that cost is a measurement, and it is made by a command:**
-
-```bash
-python scripts/measure_fair_lending_cost.py
-```
-
-The script fits the entire pipeline twice — with the characteristic and without,
-everything else held fixed — and writes `docs/charts/fair_lending.json`. The
-README quotes that file and `tests/test_docs.py` checks the two agree. The
-characteristic is added back only inside the script's own deep copy of the
-config, so `config.yaml` is never edited and the model cannot be left in the
-wrong state by forgetting to undo something.
-
-#### The measured result *(22 Oct 2026)*
-
-| | with `personal_status_sex` | without (shipped) |
-|---|---|---|
-| test Gini | 0.6151 | **0.6137** |
-| test AUC | 0.8076 | **0.8068** |
-| test KS | 0.5270 | **0.5032** |
-| standalone IV | 0.0392 | — |
-
-The Gini cost is **0.0015**. The standard error on that Gini is ±0.060 (§8.2),
-so the cost is **one fortieth of a standard error** — not a small effect but an
-undetectable one. The characteristic's IV of 0.0392 sits in the "weak" band and
-above the 0.02 selection floor, so it was genuinely selected into the comparison
-model and genuinely contributing almost nothing.
-
-**KS tells a different story, and both are reported.** It fell by 0.0238 —
-sixteen times the Gini movement. The two statistics answer different questions:
-KS is the single widest gap between the good and bad cumulative distributions,
-while AUC/Gini integrates over the whole score range. A characteristic can
-sharpen separation at one point on the scale without improving the overall
-ordering, and that is what this one was doing. Reporting only the Gini would be
-selecting the metric that flatters a decision already taken — which is the exact
-failure mode §10 is about.
-
-For the record, the figure this section carried before it was measured was
-"about one Gini point" (0.0103). The real number is roughly **seven times
-smaller**. The direction of that error is worth noticing: the invented figure
-made the lawful choice look more costly and therefore more virtuous than it was.
-
-> **This section previously carried a table of figures** (test Gini 0.2100 →
-> 0.1997 and similar) presented as measured on the held-out set. They were not:
-> they came from a run never made on real data, and were wrong by roughly a
-> factor of three. Nothing in the repository could contradict them, because a
-> number typed into a document is a number nobody can check. That is the whole
-> reason this section now names a command instead of a result. See §10.
-
-The number matters more than its size. A model that cannot lawfully be used has
-no Gini worth quoting, so this is not a trade-off between accuracy and compliance
-— it is the price of having a usable model at all.
 
 ### 1.3 Target definition
 
@@ -124,14 +63,14 @@ Three limitations are inherited with that definition, stated rather than hidden:
 
 1. **No delinquency depth or performance window.** The source gives no
    days-past-due and no observation period, so "bad" cannot be tightened to a
-   Basel-style 90-days-past-due rule. We inherit the publisher's label.
+   Basel-style 90-days-past-due rule. I inherit the publisher's label.
 2. **Accepted applicants only.** Every record was granted credit, so this is an
    accept-population model. Reject inference is the standard bank remedy and is
    out of scope; the consequence is that the model describes risk among people a
    lender already said yes to.
 3. **Direction must stay consistent.** 1 is the event, so a higher predicted
    probability means a worse applicant. If that direction flips anywhere between
-   here and the points table, the scorecard silently ranks backwards — which is
+   here and the points table, the scorecard silently ranks backwards, which is
    why the recode is tested (`test_target_recode_direction`).
 
 ### 1.5 The frozen split (Phase 1)
@@ -143,7 +82,7 @@ Three limitations are inherited with that definition, stated rather than hidden:
   model.
 - Written to `data/processed/train.csv` and `test.csv`, with
   `split_manifest.json` recording the seed, row counts, bad rate per half, and a
-  **fingerprint** — a hash of the sorted applicant IDs in each half. A later run
+  **fingerprint**, a hash of the sorted applicant IDs in each half. A later run
   producing the same fingerprints proves the split is identical, which turns
   "reproducible from a seed" from a claim into a check.
 - **No out-of-time slice is possible.** German Credit carries no application or
@@ -153,7 +92,7 @@ Three limitations are inherited with that definition, stated rather than hidden:
   would be the first thing a credit committee asked for.
 - `applicant_id` (APP_0001 …) is built from row position, because the source has
   no identifier. That is stable only because the file is a static published
-  download that we never edit.
+  download that is never edited.
 
 **Nothing downstream may re-split, re-sample, or read the test set** until Phase
 5 validation. The split is frozen here on purpose.
@@ -161,16 +100,75 @@ Three limitations are inherited with that definition, stated rather than hidden:
   bads; $G, N$ the totals. Distributions $\%good_b = g_b / G$,
   $\%bad_b = n_b / N$.
 
+### 1.6 Cost of removing the protected characteristic  *(20 Oct 2026; measurement corrected 22 Oct)*
+
+`personal_status_sex` was dropped from `schema.categorical_columns`. It remains
+listed under `fair_lending.protected_characteristics`, so the Phase 7 guard keeps
+watch if anyone ever puts it back.
+
+**What that cost is a measurement, and it is made by a command:**
+
+```bash
+python scripts/measure_fair_lending_cost.py
+```
+
+The script fits the entire pipeline twice, with the characteristic and without,
+everything else held fixed, and writes `docs/charts/fair_lending.json`. The
+README quotes that file and `tests/test_docs.py` checks the two agree. The
+characteristic is added back only inside the script's own deep copy of the
+config, so `config.yaml` is never edited and the model cannot be left in the
+wrong state by forgetting to undo something.
+
+#### The measured result *(22 Oct 2026)*
+
+| | with `personal_status_sex` | without (shipped) |
+|---|---|---|
+| test Gini | 0.6151 | **0.6137** |
+| test AUC | 0.8076 | **0.8068** |
+| test KS | 0.5270 | **0.5032** |
+| standalone IV | 0.0392 |, |
+
+The Gini cost is **0.0015**. The standard error on that Gini is ±0.060 (§8.2),
+so the cost is **one fortieth of a standard error**, not a small effect but an
+undetectable one. The characteristic's IV of 0.0392 sits in the "weak" band and
+above the 0.02 selection floor, so it was genuinely selected into the comparison
+model and genuinely contributing almost nothing.
+
+**KS tells a different story, and both are reported.** It fell by 0.0238,
+sixteen times the Gini movement. The two statistics answer different questions:
+KS is the single widest gap between the good and bad cumulative distributions,
+while AUC/Gini integrates over the whole score range. A characteristic can
+sharpen separation at one point on the scale without improving the overall
+ordering, and that is what this one was doing. Reporting only the Gini would be
+selecting the metric that flatters a decision already taken, which is the exact
+failure mode §10 is about.
+
+For the record, the figure this section carried before it was measured was
+"about one Gini point" (0.0103). The real number is roughly **seven times
+smaller**. The direction of that error is worth noticing: the invented figure
+made the lawful choice look more costly and therefore more virtuous than it was.
+
+> **This section previously carried a table of figures** (test Gini 0.2100 →
+> 0.1997 and similar) presented as measured on the held-out set. They were not:
+> they came from a run never made on real data, and were wrong by roughly a
+> factor of three. Nothing in the repository could contradict them, because a
+> number typed into a document is a number nobody can check. That is the whole
+> reason this section now names a command instead of a result. See §10.
+
+The number matters more than its size. A model that cannot lawfully be used has
+no Gini worth quoting, so this is not a trade-off between accuracy and compliance
+it is the price of having a usable model at all.
+
 ## 2. Binning / coarse classing  *(built 5 Oct 2026)*
 
 A scorecard never uses raw values. Each feature is cut into a few bins, and the
 model learns one number per bin. That buys three things a credit committee cares
 about more than a decimal of AUC:
 
-1. **Explainability** — the points table reads as a short list of plain statements.
-2. **Stability** — a bin holding 15% of the book moves slowly; a raw value moves
+1. **Explainability**, the points table reads as a short list of plain statements.
+2. **Stability**, a bin holding 15% of the book moves slowly; a raw value moves
    with every applicant.
-3. **Monotonicity** — "longer term, more risk" can be checked against business
+3. **Monotonicity**, "longer term, more risk" can be checked against business
    intuition. A bad rate that zig-zags is usually fitted noise and is very hard
    to defend in a model review.
 
@@ -195,7 +193,7 @@ category has no natural order, and ordering by risk is the ordering.
 ### 2.2 Fitted on train only
 
 Bins are learned from the training half of the frozen split and then **applied**
-to test, never re-fitted. Binning is supervised — it reads the target — so
+to test, never re-fitted. Binning is supervised, it reads the target, so
 fitting it on all the data would leak test information into the model through
 the bin boundaries themselves. This is the subtlest leak in scorecard work,
 because nothing downstream looks wrong.
@@ -205,9 +203,9 @@ bin boundaries are exactly what a reviewer wants to read and sign off.
 
 ### 2.3 Two bins that always exist
 
-- `MISSING` — a value that is absent. Not an error, not an imputation: a bin,
+- `MISSING`, a value that is absent. Not an error, not an imputation: a bin,
   which Phase 3 gives its own WOE.
-- `UNSEEN` — a category that did not exist at fit time. A new product code in
+- `UNSEEN`, a category that did not exist at fit time. A new product code in
   live data must not crash the scorer.
 
 Numeric bin edges run from -inf to +inf for the same reason: an applicant
@@ -217,7 +215,7 @@ younger or older than anyone in training still scores.
 
 If a feature collapses to a single bin under these constraints (too few distinct
 values, or no separation), it carries no information. It is left in place and
-dropped in Phase 3 by the IV threshold, rather than deleted here — one place
+dropped in Phase 3 by the IV threshold, rather than deleted here, one place
 decides what enters the model.
 
 ## 3. WOE / IV & feature selection  *(built 9 Oct 2026)*
@@ -234,7 +232,7 @@ good-ish is this bin than the book as a whole.
 
 **Sign convention, fixed once and never flipped: positive WOE = safer.** Because
 Phase 1 defined 1 = default, the logistic coefficients in Phase 4 are therefore
-expected to be **negative**. Phase 4 asserts that rather than assuming it — a
+expected to be **negative**. Phase 4 asserts that rather than assuming it, a
 scorecard that ranks backwards still produces entirely plausible-looking output,
 and this is the cheapest place to catch it.
 
@@ -254,16 +252,16 @@ One number per feature. Conventional bands, with the cutoffs in `config.yaml`:
 | IV | Reading | Action |
 |---|---|---|
 | < 0.02 | useless | drop (`woe.iv_min`) |
-| 0.02 – 0.1 | weak | keep, expect little |
-| 0.1 – 0.3 | medium | keep |
-| 0.3 – 0.5 | strong | keep |
+| 0.02 to 0.1 | weak | keep, expect little |
+| 0.1 to 0.3 | medium | keep |
+| 0.3 to 0.5 | strong | keep |
 | > 0.5 | suspiciously strong | **investigate for leakage** (`woe.iv_leakage_flag`) |
 
 ### 3.3 The leakage check
 
 A feature with IV above 0.5 is usually not a brilliant predictor. In a real bank
-build it is usually a field that encodes the outcome — a collections flag, a
-write-off date, a post-default status — and it will evaporate the moment the
+build it is usually a field that encodes the outcome, a collections flag, a
+write-off date, a post-default status, and it will evaporate the moment the
 model meets an applicant whose outcome is not yet known.
 
 Such a feature is **flagged, never dropped automatically**. Deciding whether a
@@ -281,8 +279,8 @@ been merged, not a result to accept quietly.
 
 ### 3.5 Bins never seen at fit time
 
-A bin present at scoring time but absent from training — a new product code in
-live data — is given **WOE = 0**, and the count is reported.
+A bin present at scoring time but absent from training, a new product code in
+live data, is given **WOE = 0**, and the count is reported.
 
 The reasoning, which is worth being able to defend: WOE 0 means "this
 characteristic tells us nothing about this applicant", so they receive the
@@ -297,7 +295,7 @@ and belongs on a monitoring report.
 
 WOE reads the target, so like binning it is fitted on the training half and
 applied unchanged to test. The spec is frozen to `data/processed/woe_spec.json`,
-including the full per-bin tables — a scorecard's WOE table is the artefact a
+including the full per-bin tables, a scorecard's WOE table is the artefact a
 model validator reads line by line, and it has to survive outside the process
 that produced it.
 
@@ -317,13 +315,13 @@ points table, and a points table is something a customer can be shown, a credit
 committee can sign off and a regulator can audit.
 
 A gradient-boosted model would almost certainly separate better. Phase 8
-benchmarks one for exactly that reason — to **measure** what the
+benchmarks one for exactly that reason, to **measure** what the
 interpretability costs rather than assert that it is worth it. Reporting that
 number honestly is the deliverable; hiding it would defeat the point.
 
 ### 4.2 The sign check is the headline diagnostic
 
-§3 fixed the convention — WOE = ln(%good/%bad), so positive WOE is safer — and
+§3 fixed the convention, WOE = ln(%good/%bad), so positive WOE is safer, and
 §1.4 defined 1 = default. Therefore **every slope must be negative**: a more
 good-ish characteristic must lower the log-odds of default.
 
@@ -334,7 +332,7 @@ A positive coefficient means one of two things, and both matter:
 2. a sign has been flipped somewhere upstream.
 
 A scorecard with a flipped sign **ranks applicants backwards and still produces
-entirely plausible output** — plausible PDs, a plausible score distribution, a
+entirely plausible output**, plausible PDs, a plausible score distribution, a
 plausible points table. There is no symptom. That is why
 `test_all_coefficients_are_negative` asserts it, and why
 `test_flipped_woe_sign_is_caught` feeds the model deliberately negated WOE and
@@ -351,7 +349,7 @@ has settled, at which point a positive slope stops the run.
 
 | Check | Setting | The question it answers |
 |---|---|---|
-| Coefficient sign | — | Does the model rank the right way round? |
+| Coefficient sign |, | Does the model rank the right way round? |
 | p-value | `model.p_value_max` (0.05) | Could this variable's true effect be zero? |
 | VIF | `model.vif_max` (5.0) | Are two features telling the same story? |
 | Bootstrap sign consistency | `model.bootstrap_resamples` (50) | Is this coefficient a fact about credit risk, or about this sample? |
@@ -359,7 +357,7 @@ has settled, at which point a positive slope stops the run.
 **VIF** is $1/(1-R^2_k)$, where $R^2_k$ comes from regressing feature $k$ on all
 the others. Under 5 is comfortable; above 10 means the model cannot decide how to
 split the credit between two overlapping variables, so their coefficients swap
-magnitudes — and sometimes signs — on a slightly different sample. WOE reduces
+magnitudes, and sometimes signs, on a slightly different sample. WOE reduces
 this but does not remove it. It is computed here by hand rather than imported,
 because it is three lines and worth being able to write on a whiteboard.
 
@@ -373,7 +371,7 @@ The run reports every failing check and then says: drop the worst offender,
 refit, re-read. `model.drop_feature` supports that loop explicitly.
 
 A stepwise routine would do it faster and hide the thing a credit committee most
-wants to see — *why* each variable is in the final model. On the first fit of the
+wants to see, *why* each variable is in the final model. On the first fit of the
 real data, four features came back insignificant and two had unstable signs.
 Working through that by hand, and recording the reasoning, is the Phase 4
 deliverable; the coefficient table is just the artefact.
@@ -388,14 +386,14 @@ that to one library version. Phase 7's applicant scorer depends on this.
 ### 4.5a Enough data to fit at all: events per variable
 
 The binding constraint on a logistic regression is not the row count, it is the
-number of **events** — here, bads. The long-standing rule of thumb in credit risk
+number of **events**, here, bads. The long-standing rule of thumb in credit risk
 and biostatistics is at least **10 events per variable (EPV)**; below that,
 standard errors are unreliable and the parameters may not be identified at all.
 `model.min_events_per_variable` enforces it and the figure is printed on every
 fit.
 
 This guard exists because of a real failure. A run against the bundled 24-row
-sample reached Stage 4 with 14 features and 5 bads — EPV 0.36, fifteen
+sample reached Stage 4 with 14 features and 5 bads, EPV 0.36, fifteen
 parameters from sixteen rows. On one library version it raised
 `LinAlgError: Singular matrix`; on another it returned, without complaint,
 coefficients of -21.9 with VIF of 299. **The silent version is the dangerous
@@ -407,7 +405,7 @@ Two degenerate outcomes are now refused explicitly:
 | Symptom | What it means |
 |---|---|
 | EPV below the threshold | not enough events to identify the parameters; stop before fitting |
-| Standard errors in the thousands | perfect separation — some feature combination predicts the outcome exactly, so no finite coefficient is best |
+| Standard errors in the thousands | perfect separation, some feature combination predicts the outcome exactly, so no finite coefficient is best |
 
 Perfect separation deserves its own note, because it does not raise and does not
 produce NaNs: the optimiser simply walks toward infinity, and statsmodels reports
@@ -420,14 +418,14 @@ message says so.
 ### 4.6 Trained on train only
 
 The test half is untouched until §5. In-sample PD is reported in the run only as
-a sanity check — a fitted logistic regression is calibrated in-sample almost by
+a sanity check, a fitted logistic regression is calibrated in-sample almost by
 construction, so a mean predicted PD equal to the observed bad rate says the link
 and intercept are right and says **nothing whatever** about performance.
 
 ## 5. Validation  *(built 13 Oct 2026)*
 
-**This is the first stage that touches the test set.** Everything before it —
-binning, WOE, selection, the logistic fit — saw only the training half of the
+**This is the first stage that touches the test set.** Everything before it,
+binning, WOE, selection, the logistic fit, saw only the training half of the
 frozen split. These numbers are therefore the first honest statement about the
 model, and they get exactly one chance to be honest: every time a modelling
 decision is changed in response to a test number, the test set becomes a little
@@ -440,22 +438,22 @@ failing the others:
 
 | Question | Metrics | What failing it means |
 |---|---|---|
-| **Discrimination** — does it separate good from bad? | KS, Gini / AUC | the model has no signal |
-| **Calibration** — are the PDs right in *level*? | reliability by decile, Hosmer-Lemeshow | the ranking is fine, the pricing is wrong |
-| **Stability** — does it hold up out of sample? | PSI | it works on this sample and not the next |
+| **Discrimination**, does it separate good from bad? | KS, Gini / AUC | the model has no signal |
+| **Calibration**, are the PDs right in *level*? | reliability by decile, Hosmer-Lemeshow | the ranking is fine, the pricing is wrong |
+| **Stability**, does it hold up out of sample? | PSI | it works on this sample and not the next |
 
-Reporting AUC alone — the common shortcut — answers one question in three.
+Reporting AUC alone, the common shortcut, answers one question in three.
 
 ### 5.2 KS
 
 $$\text{KS} = \max_s \big| F_{\text{bad}}(s) - F_{\text{good}}(s) \big|$$
 
 At the best cut-off, how many more percentage points of bads can you reject than
-of goods. The report prints that cut-off in business terms — *rejects X% of bads
-and Y% of goods, which is Z% of the book* — because that is the sentence a credit
+of goods. The report prints that cut-off in business terms, *rejects X% of bads
+and Y% of goods, which is Z% of the book*, because that is the sentence a credit
 committee actually discusses.
 
-Bands for an application scorecard: below 0.20 weak, 0.20–0.40 usual, above 0.50
+Bands for an application scorecard: below 0.20 weak, 0.20 to 0.40 usual, above 0.50
 unusually good, above 0.70 a reason to look for leakage rather than celebrate.
 
 ### 5.3 Gini and AUC
@@ -475,7 +473,7 @@ that. It is the reason calibration is a separate section rather than a footnote.
 
 ### 5.4 Calibration
 
-Predicted PD against realised default rate by decile of predicted risk — the
+Predicted PD against realised default rate by decile of predicted risk, the
 credit version of a reliability diagram. Each band's gap is judged against its
 own **binomial standard error**, $\sqrt{p(1-p)/n}$, rather than a flat
 tolerance, because a 30-account band is noisy and a 3,000-account band is not.
@@ -486,7 +484,7 @@ $$\chi^2 = \sum_b \frac{(O_b - E_b)^2}{E_b\,(1 - E_b/n_b)}$$
 
 Two things about it are routinely misread, so the report says both out loud:
 
-* a **low** p-value means **poor** calibration — the opposite direction to most
+* a **low** p-value means **poor** calibration, the opposite direction to most
   tests;
 * the test is weak on small samples, so it is printed *beside* the band table,
   never instead of it.
@@ -501,7 +499,7 @@ sample would make any two distributions look identical, because each would hold
 10% of itself in each of its own deciles.
 `test_psi_bands_are_cut_on_the_expected_sample` pins it.
 
-Reading: below 0.10 stable, 0.10–0.25 a shift worth monitoring, above 0.25 a
+Reading: below 0.10 stable, 0.10 to 0.25 a shift worth monitoring, above 0.25 a
 major shift that normally triggers a redevelopment discussion. Per-band
 contributions are reported too, so a single drifting characteristic can be
 identified rather than just a total.
@@ -528,8 +526,8 @@ Gini drop train->test     0.3214   (limit 0.15)
 ```
 
 The model learned the training sample, not the problem. The honest response is to
-go back to the **training-set** work — fewer features, heavier binning, a
-stricter IV floor — and *not* to adjust anything in response to the test number.
+go back to the **training-set** work, fewer features, heavier binning, a
+stricter IV floor, and *not* to adjust anything in response to the test number.
 
 ### 5.8 What is deliberately not done
 
@@ -552,7 +550,7 @@ $$\text{Factor} = \frac{\text{PDO}}{\ln 2}, \qquad
 \text{Offset} = \text{BaseScore} - \text{Factor}\times\ln(\text{BaseOdds})$$
 
 **PDO** is "points to double the odds". With `pdo = 20`, gaining 20 points
-doubles the good:bad odds — the one sentence that explains a scorecard to someone
+doubles the good:bad odds, the one sentence that explains a scorecard to someone
 who will never see a logistic regression, and the entire reason for this scaling
 rather than reporting the PD directly. `test_pdo_doubles_the_odds` checks it at
 four different score levels.
@@ -566,8 +564,8 @@ $$\text{Points}_k = -\Big(\beta_k\,\text{WOE}_k + \frac{\beta_0}{n}\Big)
                       \times \text{Factor} + \frac{\text{Offset}}{n}$$
 
 The intercept and offset are split evenly across the $n$ variables. That is a
-*presentational* choice — it makes every characteristic's points comparable and
-the total come out right — and nothing in the model depends on it.
+*presentational* choice, it makes every characteristic's points comparable and
+the total come out right, and nothing in the model depends on it.
 
 Scoring an applicant is then a **lookup and an addition**. A clerk with the
 printed table and a calculator gets the same answer as the pipeline, which is
@@ -591,8 +589,8 @@ end-to-end checks.
 ### 6.4 Verification: the table must reproduce the model
 
 A points table is worth nothing unless it reproduces the model it came from.
-`verify_against_model` scores every applicant both ways — through the table and
-through the logistic model — and reports the largest disagreement.
+`verify_against_model` scores every applicant both ways, through the table and
+through the logistic model, and reports the largest disagreement.
 
 **Unrounded it must be zero to floating-point precision**, because the table is
 an algebraic rearrangement of the model, not an approximation. Rounding to whole
@@ -601,7 +599,7 @@ characteristic rounds independently, so each contributes at most half a point.
 
 **The tolerance therefore scales with the number of characteristics**, and a
 fixed one is a design error. The first real run failed an eleven-characteristic
-card at 2.277 points against a flat 1.0 limit — a table that was entirely
+card at 2.277 points against a flat 1.0 limit, a table that was entirely
 correct. `verification_tolerance_per_feature` (0.5) is the right form of the
 setting; `rounding_tolerance` turns it into a total.
 
@@ -612,8 +610,8 @@ and requires the check to refuse the table.
 
 `base_odds = 50` asserts a reference applicant with a PD of $1/51 = 1.96\%$. If
 the model never produces a PD that low, the scale is anchored at a
-creditworthiness nobody in the population has. The ranking is unaffected — the
-scaling is linear — but every score reads oddly against the stated reference, and
+creditworthiness nobody in the population has. The ranking is unaffected, the
+scaling is linear, but every score reads oddly against the stated reference, and
 a committee will ask on sight.
 
 **The subtlety: raising `base_score` does not fix it.** The offset moves with it,
@@ -628,7 +626,7 @@ on rather than merely noted.
 
 ### 6.6 Unseen bins score the characteristic's mean, not zero
 
-Zero is not neutral on this scale — the offset is baked into every cell — so zero
+Zero is not neutral on this scale, the offset is baked into every cell, so zero
 points would be a severe and arbitrary penalty for a data gap that is the
 lender's fault. An unseen bin receives the characteristic's mean points.
 
@@ -645,20 +643,20 @@ row is a policy option:
 | 552 | 15.3% | 15.2% | 92.0% | 81.6% |
 
 Read as: *declining below 514 approves 56% of applicants, the approved book runs
-a 23.2% bad rate, and we keep out 55.7% of the bads at the cost of turning away
+a 23.2% bad rate, and it keeps out 55.7% of the bads at the cost of turning away
 39.2% of the goods.* Both sides of that trade-off are reported, because a
 cut-off that rejects most of the bads by rejecting most of everyone is not a
 policy.
 
 ### 6.8 The frozen artefact
 
-`data/processed/scorecard.json` — the points table plus the scaling constants, as
+`data/processed/scorecard.json`, the points table plus the scaling constants, as
 plain JSON. A scorecard has to be scoreable by hand, years later, with no code at
 all. That is why nothing in this pipeline is pickled.
 
 ## 7. Interactive scorer & reason codes  *(built 18 Oct 2026)*
 
-Given one applicant, return their score, their PD, and **reason codes** — the
+Given one applicant, return their score, their PD, and **reason codes**, the
 characteristics where they lost the most points.
 
 ### 7.1 Reason codes are a legal artefact
@@ -670,7 +668,7 @@ no"* is not an answer in either jurisdiction.
 
 This is the clearest practical reason the project uses a points table rather than
 a gradient-boosted model. Reason codes here are not a surrogate model, a LIME
-explanation or a SHAP value — they are **read directly off the arithmetic that
+explanation or a SHAP value, they are **read directly off the arithmetic that
 produced the decision**. The sum of the points *is* the score, so the
 characteristic that cost the most points *is* the reason.
 
@@ -690,7 +688,7 @@ bin is the only reference that answers it.
 A characteristic where the applicant already holds the best bin has lost nothing
 and can never be cited. That falls out of the arithmetic rather than needing a
 special case, which is exactly why
-`test_best_possible_applicant_has_no_reason_codes` asserts it — a notice saying
+`test_best_possible_applicant_has_no_reason_codes` asserts it, a notice saying
 *"your perfect credit history counted against you"* would be worse than none.
 
 Losses below `minimum_points_lost` (1 point) are suppressed: being one point
@@ -712,7 +710,7 @@ against them. It is unlawful under ECOA / Regulation B, and under the National
 Credit Act and the Equality Act in South Africa.
 
 The code was working perfectly. The problem is that **the model contains a
-protected characteristic** — flagged as an open decision in Phase 3 (§1.2,
+protected characteristic**, flagged as an open decision in Phase 3 (§1.2,
 §3) and never resolved. Phase 7 is where deferring it stopped being possible,
 because this is the phase that puts the model's reasoning in front of the
 applicant.
@@ -721,9 +719,9 @@ The scorer now refuses. `fair_lending.protected_characteristics` names the
 characteristics that may not be cited, and
 `fair_lending.on_protected_reason_code` sets the behaviour:
 
-* **`refuse`** (default) — raise `FairLendingError`. An explanation that cannot
+* **`refuse`** (default), raise `FairLendingError`. An explanation that cannot
   lawfully be given should not be produced at all.
-* **`warn`** — suppress the code, and keep saying in the explanation that the
+* **`warn`**, suppress the code, and keep saying in the explanation that the
   model is not fit for lending use.
 
 **Suppressing the notice does not make the model lawful.** The characteristic is
@@ -741,7 +739,7 @@ model; presence is reported separately as `protected_in_model`.
 `app/scorer.py` reads only `binning_spec.json` and `scorecard.json`. It never
 refits anything and does not need the training data, the model object, or the
 pipeline. A scorecard that can only be used by the person who built it is not a
-scorecard — `test_scorer_works_from_frozen_artefacts_alone` is the check.
+scorecard, `test_scorer_works_from_frozen_artefacts_alone` is the check.
 
 Four ways to run it, because different situations need different ones:
 
@@ -757,7 +755,7 @@ attached **only on a decline**, which is when they are required.
 
 An incomplete application is scoreable, because incomplete applications are the
 normal case: Phase 2's `MISSING` bin and Phase 3's WOE for it carry it through.
-An *unknown* attribute name, by contrast, is refused — a typo must not silently
+An *unknown* attribute name, by contrast, is refused, a typo must not silently
 score the applicant as though that information were missing.
 
 ## 8. Benchmark & the trade-off  *(built 20 Oct 2026)*
@@ -785,7 +783,7 @@ Three things, each easy to get wrong in a way that flatters one side:
    model that can be used and one that cannot. The report names the watched list
    whether or not it had to act, so a reader can tell the question was asked.
 
-**scikit-learn's `HistGradientBoostingClassifier`**, not LightGBM — the same
+**scikit-learn's `HistGradientBoostingClassifier`**, not LightGBM, the same
 histogram-based family, already a dependency, and it handles categoricals and
 missing values natively, so no imputation choice can tilt the result. Settings
 are deliberately modest: a heavily tuned booster on 700 rows would mostly be
@@ -798,7 +796,7 @@ measuring how much hyperparameter search the test set can absorb.
 | Scorecard (logistic + WOE) | **0.6137** | 0.6445 | **0.0309** |
 | Benchmark (gradient boosting) | 0.5668 | 0.8198 | 0.2529 |
 
-**Gini gap: −0.0468 (−7.6% relative).** The benchmark does not win.
+**Gini gap: -0.0468 (-7.6% relative).** The benchmark does not win.
 
 Two readings, and the difference between them is the point.
 
@@ -812,13 +810,13 @@ rows the answer would most likely remain "too close to call".
 *The reading that survives:* there is **no evidence the benchmark discriminates
 better on this dataset**, and the generalisation gap is a far more robust
 signal. The booster's train Gini of 0.8198 against a test Gini of 0.5668 is a
-drop of 0.2529, against the scorecard's 0.0309 — an eightfold difference, and
+drop of 0.2529, against the scorecard's 0.0309, an eightfold difference, and
 exactly what a flexible model does to 700 rows. Most of what it learned was this
 particular sample.
 
 So the honest summary is: *on a book this size the gradient-boosted model buys no
 measurable discrimination and pays for it with eight times the overfitting, and
-it cannot produce a reason code.* The interpretability is free here — and saying
+it cannot produce a reason code.* The interpretability is free here, and saying
 "free" rather than "better" is the difference between a claim that survives
 scrutiny and one that does not.
 
@@ -834,7 +832,7 @@ scrutiny and one that does not.
 It is worth saying what the position would be, because the answer must not
 depend on the result being convenient. The report has three branches, and the
 material-loss one says plainly that a large gap is *a real finding and should be
-reported, not buried* — the scorecard would still be the right choice where
+reported, not buried*, the scorecard would still be the right choice where
 explainability is a legal requirement, and the gap is what that requirement
 costs. `test_report_does_not_hide_a_material_loss` checks that wording exists.
 
@@ -851,16 +849,16 @@ numbers from that file and `tests/test_docs.py` checks the two agree, to the
 precision the README quotes.
 
 This closes a loop usually left open. A README's numbers drift out of date
-silently, and the drift is only ever found by a reader — in this case, an
+silently, and the drift is only ever found by a reader, in this case, an
 interviewer. Here a stale number fails the test suite.
 
 Two of those tests are not about numbers at all:
 
-* `test_readme_reports_the_failing_gates` — the model fails two validation
+* `test_readme_reports_the_failing_gates`, the model fails two validation
   thresholds, and the README must keep saying so. The easiest way to make a
   portfolio project look stronger is to delete the sentence admitting it did not
   clear a limit; here that deletes a passing test with it.
-* `test_readme_keeps_the_fair_lending_finding` — the protected-characteristic
+* `test_readme_keeps_the_fair_lending_finding`, the protected-characteristic
   work, its measured cost, and the sentence stating the lesson must all remain.
 
 Writing a test against your own future temptation is an odd thing to do, and it
@@ -880,7 +878,7 @@ held-out set the model clears all of them:
 
 The thresholds stay where they are precisely *because* the model passes them.
 A limit that moves to accommodate a result was never a limit, and the time to
-fix its position is before the result is known — which is what putting it in
+fix its position is before the result is known, which is what putting it in
 config, in an earlier commit, actually buys.
 
 The binding constraint on all four figures is the dataset: 1,000 rows, 300
@@ -892,7 +890,7 @@ point estimate rather than leaving the precision implied.
 The KS panel of the discrimination chart was first drawn from the rounded
 **points**, while the validation report quotes KS on the continuous **predicted
 PD**. The two differed in the fourth decimal place, so the README would have
-carried two different KS figures a page apart — exactly the kind of discrepancy
+carried two different KS figures a page apart, exactly the kind of discrepancy
 an interviewer notices and an author cannot explain on the spot.
 
 The chart now draws the PD curve, so the gap on the chart *is* the KS in the
@@ -911,18 +909,18 @@ chart, and records `"real_data": false`.
 `test_committed_charts_came_from_real_data` refuses the commit.
 
 The stamp is applied in `finish()`, which every chart is saved through, so it
-cannot be forgotten on one — the same structural argument as the
+cannot be forgotten on one, the same structural argument as the
 per-characteristic rounding tolerance in §6: make the correct behaviour the
 default rather than something to remember.
 
-### 9.5 Two charting mistakes worth naming
+### 9.5 Two charting mistakes
 
 * **Two translucent fills on the score-separation chart** turned the overlap
-  into a third muddy colour belonging to neither group — and the overlap is the
+  into a third muddy colour belonging to neither group, and the overlap is the
   business problem the chart exists to show. Each distribution now carries a
   solid outline over a light fill, so its shape reads through the other.
 * **The characteristic names on the points table** were placed in the left
-  margin at a fixed offset, which collided with the longest bin labels — and the
+  margin at a fixed offset, which collided with the longest bin labels, and the
   longest labels are the ones a reader most needs. They are now bold header rows
   inside the axis.
 
@@ -931,9 +929,9 @@ PNG and looking at it, which is the only check that catches them.
 
 ### 9.6 A silent edit, caught by the file itself
 
-Worth recording because it is the same class of error as everything else in this
+Recorded because it is the same class of error as everything else in this
 document. The first attempt to add this section inserted it before a
-`## References` heading — which this file does not have. The edit matched
+`## References` heading, which this file does not have. The edit matched
 nothing, changed nothing, and reported success. It was caught only because
 `git status` showed `docs/methodology.md` unmodified.
 
@@ -965,7 +963,7 @@ conclusions:
 * The README stated the model **failed two validation gates**. It passes all
   four.
 * The README stated the **gradient booster beat the scorecard** by 0.0141 Gini.
-  The scorecard comes in 0.0468 ahead — within the standard error either way,
+  The scorecard comes in 0.0468 ahead, within the standard error either way,
   but certainly not behind.
 
 A reader would have been told this scorecard barely ranks better than a coin
@@ -981,7 +979,7 @@ in any line of model code: the pipeline has been correct throughout, which is
 precisely why nothing downstream complained.
 
 Then they spread. Once written into `config.yaml` as a comment, they were
-copied into the methodology, the progress log, and the README — each copy
+copied into the methodology, the progress log, and the README, each copy
 borrowing its authority from the one before it. By 21 October the same five
 numbers existed in five places and no place could check any other.
 
@@ -991,7 +989,7 @@ This is the part worth dwelling on, because the suite was *designed* to catch
 exactly this and did not.
 
 `tests/test_docs.py` carried two kinds of check. One compared the README
-against `docs/charts/numbers.json` — the file the chart script writes from a
+against `docs/charts/numbers.json`, the file the chart script writes from a
 real run. That check was correct, and it is what eventually failed. The other
 asserted string literals:
 
@@ -1008,7 +1006,7 @@ wearing the costume of a check. Worse, it actively protected the error: any
 attempt to correct the README would have turned the suite red, and red suites
 invite reverting the change rather than questioning the test.
 
-The dynamic check only fired once a **real** `numbers.json` existed — which
+The dynamic check only fired once a **real** `numbers.json` existed, which
 required the real data, which arrived a day later.
 
 ### 10.4 What changed
@@ -1027,7 +1025,7 @@ required the real data, which arrived a day later.
 
 Three of this project's bugs now share one shape: the singular matrix that
 returned plausible coefficients, the verification tolerance that was flat when
-the error scaled, and this. In each case the wrong answer was *representable* —
+the error scaled, and this. In each case the wrong answer was *representable*,
 the system could hold it, display it, and pass its own checks while holding it.
 
 > **A number that no command can regenerate is not a result. It is a note about

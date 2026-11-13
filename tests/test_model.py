@@ -1,5 +1,5 @@
 """
-Phase 4 tests — the logistic PD model.
+Phase 4 tests, the logistic PD model.
 
 The centrepiece is `test_all_coefficients_are_negative`. With WOE on the
 positive-is-safer convention and 1 = default, every slope must be negative. A
@@ -209,7 +209,7 @@ def test_predicted_pd_is_a_valid_probability(config):
     pd_hat = model.predict_pd(fitted, X[columns])
 
     assert ((pd_hat > 0) & (pd_hat < 1)).all()
-    # The mean predicted PD must land close to the observed bad rate — a fitted
+    # The mean predicted PD must land close to the observed bad rate, a fitted
     # logistic regression is calibrated in-sample almost by construction, and if
     # it is not, something is wrong with the link or the intercept.
     assert pd_hat.mean() == pytest.approx(y.mean(), abs=0.02)
@@ -375,7 +375,7 @@ def test_perfect_separation_is_refused(config):
     the optimiser walks off toward infinity: statsmodels returned a coefficient
     of -13.4 with a standard error of 16,342 here. Nothing errored, nothing was
     NaN, and the coefficient was meaningless. The giveaway is the standard
-    error — on the WOE scale a real one is of order 0.5 to 2.
+    error, on the WOE scale a real one is of order 0.5 to 2.
     """
     rng = np.random.default_rng(3)
     n = 400

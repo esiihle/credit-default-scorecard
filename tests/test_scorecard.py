@@ -1,5 +1,5 @@
 """
-Phase 7 tests — the applicant scorer and reason codes.
+Phase 7 tests, the applicant scorer and reason codes.
 
 Reason codes are a legal artefact, so the tests are about correctness and
 fairness rather than performance: the right characteristic named, the right
@@ -125,7 +125,7 @@ def test_a_completely_blank_application_is_still_scoreable(pipeline):
 
 
 def test_an_unknown_attribute_is_refused(pipeline):
-    """A typo in an attribute name must not be silently ignored — it would
+    """A typo in an attribute name must not be silently ignored, it would
     score the applicant as though that information were missing."""
     with pytest.raises(scorer.ScorerError) as error:
         scorer.score_applicant(
@@ -145,7 +145,7 @@ def test_scoring_is_deterministic(pipeline):
 
 
 # =========================================================================
-# Reason codes — the legal artefact
+# Reason codes: the legal artefact
 # =========================================================================
 
 def test_reason_codes_name_the_characteristic_that_cost_the_most(pipeline):
@@ -334,7 +334,7 @@ def test_empty_batch_is_refused(pipeline):
 
 def test_scorer_works_from_frozen_artefacts_alone(pipeline, tmp_path):
     """The point of the whole design: scoring must not need the training data,
-    the model object, or the pipeline — only the frozen JSON."""
+    the model object, or the pipeline, only the frozen JSON."""
     cfg = dict(pipeline["config"])
     cfg["data"] = dict(pipeline["config"]["data"], processed_dir=str(tmp_path))
 
@@ -355,7 +355,7 @@ def test_scorer_works_from_frozen_artefacts_alone(pipeline, tmp_path):
 
 
 # =========================================================================
-# Fair lending — found on a live explanation, 18 Oct 2026
+# Fair lending: found on a live explanation, 18 Oct 2026
 # =========================================================================
 
 def test_a_protected_characteristic_in_a_reason_code_is_refused(pipeline):
@@ -368,7 +368,7 @@ def test_a_protected_characteristic_in_a_reason_code_is_refused(pipeline):
         ('male: divorced / separated')
 
     That is an adverse-action notice telling an applicant their SEX counted
-    against them — unlawful under ECOA / Regulation B in the US, and under the
+    against them, unlawful under ECOA / Regulation B in the US, and under the
     National Credit Act and Equality Act in South Africa.
 
     The code was working perfectly. The problem is that the MODEL contains a
@@ -433,7 +433,7 @@ def test_no_protected_characteristics_means_no_warning(pipeline):
 
 def test_a_protected_characteristic_below_the_threshold_does_not_trigger(pipeline):
     """The guard fires on what would actually be CITED, not on mere presence in
-    the model — that is what `protected_in_model` reports separately."""
+    the model, that is what `protected_in_model` reports separately."""
     breakdown = pd.DataFrame([
         {"characteristic": "personal_status_sex", "applicant_bin": "x",
          "points": 50, "best_available": 50.2, "worst_available": 20,

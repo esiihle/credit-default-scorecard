@@ -1,5 +1,5 @@
 """
-Phase 3 tests — Weight of Evidence and Information Value.
+Phase 3 tests, Weight of Evidence and Information Value.
 
 The most valuable tests here are the two hand-computed ones: a WOE and an IV
 worked out on paper, asserted against the code. Everything else in a scorecard
@@ -133,7 +133,7 @@ def test_suspiciously_strong_feature_is_flagged_not_dropped(config):
     n = 1000
     rng = np.random.default_rng(1)
     target = pd.Series(rng.integers(0, 2, n))
-    # A "feature" that almost is the target — i.e. obvious leakage.
+    # A "feature" that almost is the target, i.e. obvious leakage.
     leak = np.where(target == 1, "will_default", "will_pay")
     binned = pd.DataFrame({"collections_flag_bin": leak})
 
@@ -205,7 +205,7 @@ def test_apply_woe_produces_one_numeric_column_per_feature(config):
 
 
 def test_unseen_bin_scores_neutral_and_is_counted(config):
-    """A level that never appeared in training gets WOE 0 — and is reported."""
+    """A level that never appeared in training gets WOE 0, and is reported."""
     binned, target = make_binned_frame()
     spec = woe.compute_woe_iv(binned, target, config)
 

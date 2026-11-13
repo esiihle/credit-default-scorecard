@@ -1,10 +1,10 @@
 """
-Stage 2 — Binning / coarse classing.  [Built in Phase 2, 5 Oct 2026]
+Stage 2, Binning / coarse classing.  [Built in Phase 2, 5 Oct 2026]
 
 What this stage does, and why a scorecard needs it at all:
 
-A scorecard does not use raw values. It uses **bins** — "loan term 0-12 months",
-"13-24 months", and so on — because bins give three things a credit committee
+A scorecard does not use raw values. It uses **bins**, "loan term 0-12 months",
+"13-24 months", and so on, because bins give three things a credit committee
 insists on:
 
 1. **Explainability.** A points table reads as a handful of plain statements.
@@ -23,9 +23,9 @@ cheapest to merge (the smallest difference in bad rate), so the bins that surviv
 are the ones that genuinely separate risk.
 
 Three constraints, all from config.yaml:
-  * ``binning.min_bin_fraction`` — no bin smaller than this share of accounts
-  * ``binning.max_bins``         — at most this many bins per feature
-  * ``binning.enforce_monotonic`` — bad rate must move in one direction
+  * ``binning.min_bin_fraction``, no bin smaller than this share of accounts
+  * ``binning.max_bins``, at most this many bins per feature
+  * ``binning.enforce_monotonic``, bad rate must move in one direction
 
 **Fit on train only.** The returned spec is then applied unchanged to test, and
 in Phase 7 to a single live applicant. That is the whole point of freezing it to
@@ -51,7 +51,7 @@ class BinningError(Exception):
 
 
 # ===========================================================================
-# Internal helpers — bins as a simple list of dicts, so every step is readable
+# Internal helpers: bins as a simple list of dicts, so every step is readable
 # ===========================================================================
 
 def _bin_stats(groups):
@@ -121,7 +121,7 @@ def _apply_constraints(groups, total, min_fraction, max_bins, enforce_monotonic,
     while len(groups) > 1:
         guard += 1
         if guard > 200:                      # cannot happen; a safety net, not logic
-            raise BinningError("Binning did not converge — check the input data.")
+            raise BinningError("Binning did not converge, check the input data.")
 
         # 1. Any bin too small?
         small = [i for i, b in enumerate(groups) if b["count"] / total < min_fraction]
@@ -168,7 +168,7 @@ def fit_numeric_bins(values, target, config=None, fine_bins=20):
     -------
     dict
         ``{"type": "numeric", "edges": [...], "bins": [...]}``. Edges run from
-        -inf to +inf so a value outside the training range still lands in a bin —
+        -inf to +inf so a value outside the training range still lands in a bin,
         a new applicant aged 19 must not crash the scorer.
     """
     cfg = (config or {}).get("binning", {})
@@ -217,7 +217,7 @@ def fit_categorical_bins(values, target, config=None):
     the book. Sorting by risk is what makes grouping meaningful: putting "car
     (new)" with "car (used)" is only sensible if they default at similar rates.
 
-    Monotonicity is NOT enforced here — a categorical has no natural order, so
+    Monotonicity is NOT enforced here, a categorical has no natural order, so
     the groups are ordered by risk by construction.
     """
     cfg = (config or {}).get("binning", {})
@@ -276,7 +276,7 @@ def fit_bins(train, config=None, target_column="is_default"):
     if target_column not in train.columns:
         raise BinningError(
             f"Target column '{target_column}' not in the training frame. "
-            "Binning must see the target — it is supervised, not just cutting."
+            "Binning must see the target, it is supervised, not just cutting."
         )
 
     y = train[target_column]
@@ -313,7 +313,7 @@ def bin_label(edges):
 
 
 def apply_bins(df, spec):
-    """Apply a frozen spec to any frame — test, or one live applicant.
+    """Apply a frozen spec to any frame, test, or one live applicant.
 
     Two deliberate behaviours, because both situations happen in production:
 
@@ -349,8 +349,8 @@ def spec_bin_order(definition):
     """The natural order of a feature's bins.
 
     Numeric bins run low to high; categorical groups run safest to riskiest.
-    Without this, a summary sorts labels alphabetically — "24 - 41" lands before
-    "<= 24" — and a perfectly monotonic feature looks broken. Presentation order
+    Without this, a summary sorts labels alphabetically, "24 - 41" lands before
+    "<= 24", and a perfectly monotonic feature looks broken. Presentation order
     is not cosmetic when the whole point of the stage is a visible trend.
     """
     if definition["type"] == "numeric":

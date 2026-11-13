@@ -1,120 +1,132 @@
-# Roadmap — Credit Default Scorecard
+# Roadmap: Credit Default Scorecard
 
-> **This is the project timeline: from inception to presentation.** It is the
-> centrepiece of the initial commit — a public commitment to a schedule and a
-> definition of done for every phase.
+> The build plan, and what actually happened against it. I wrote the schedule
+> before starting and I am leaving it here unedited, because a plan that is
+> quietly rewritten to match the outcome is not a plan.
 
-## Planning assumptions
+## Planning assumptions, as written on 28 September 2026
 
-- **Inception:** 28 September 2026 (documentation committed 1 Sep; the build
-  itself started 28 Sep and the schedule is baselined from that date).
-- **Cadence:** one commit per working day — the commit history is the evidence.
-- **Effort:** ~1 hour per day, ~6 days per week → **~6 focused hours/week**.
-- **Honesty note on small sessions:** short daily blocks carry a reload cost;
-  estimates include a modest buffer. This project is well-trodden and the primary
-  dataset (German Credit) is small, so the risk here is *methodology precision*,
-  not runtime.
-- Dates are targets, not promises. The commit history is the real record.
+- **Inception:** 28 September 2026. Documentation went up on 1 September; the
+  build itself started on the 28th and the schedule was baselined from then.
+- **Cadence:** one commit per working day, with the commit history as evidence.
+- **Effort:** about 1 hour a day, 6 days a week, so roughly 6 focused hours a
+  week.
+- **Risk:** this is a well trodden method on a small dataset, so the risk was
+  methodology precision rather than runtime.
+- Dates were targets, not promises. The commit history is the real record.
 
-## Milestone summary
+## Plan against actual
 
-| Phase | Focus | Week | Target window | Hours |
+| Phase | Focus | Target window | Landed | |
 |---|---|---|---|---|
-| 0 | Foundations & EDA | 1 | Sep 28 – Oct 4 | 6 |
-| 1 | Target definition & split | 2 | Oct 5 – Oct 11 | 6 |
-| 2 | Binning / monotonic classing | 3 | Oct 12 – Oct 18 | 6 |
-| 3 | WOE / IV & feature selection | 4 | Oct 19 – Oct 25 | 6 |
-| 4 | Logistic PD model | 5 | Oct 26 – Nov 1 | 6 |
-| 5 | Validation (KS/Gini/AUC/PSI) | 6 | Nov 2 – Nov 8 | 6 |
-| 6 | Score scaling & points table | 7 | Nov 9 – Nov 15 | 6 |
-| 7 | Interactive scorer + benchmark | 8 | Nov 16 – Nov 22 | 6 |
-| 8 | Docs & presentation | 9 | Nov 23 – Nov 29 | 6 |
-| 9* | *Optional:* SAS parallel build | 10–11 | Nov 30 – Dec 13 | 12 |
+| **0** | Foundations and EDA | Sep 28 to Oct 4 | **30 Sep** | on time |
+| **1** | Target definition and split | Oct 5 to 11 | **3 Oct** | 8 days early |
+| **2** | Binning and monotonic classing | Oct 12 to 18 | **9 Oct** | 9 days early |
+| **3** | WOE, IV and feature selection | Oct 19 to 25 | **10 Oct** | 15 days early |
+| **4** | Logistic PD model | Oct 26 to Nov 1 | **10 Oct** | 22 days early |
+| **5** | Validation | Nov 2 to 8 | **14 Oct** | 25 days early |
+| **6** | Score scaling and points table | Nov 9 to 15 | **14 Oct** | 32 days early |
+| **7** | Interactive scorer and benchmark | Nov 16 to 22 | **18 Oct** | 35 days early |
+| **8** | Docs and presentation | Nov 23 to 29 | **21 Oct** | 39 days early |
 
-**🎯 Target presentation date (Python): 27 November 2026.**
-**🎯 With optional SAS build: 11 December 2026.**
+The presentation milestone was targeted at 27 November and reached on 21
+October, about five weeks ahead. Two reasons, and only one of them is flattering.
 
----
+The honest one: a well specified method on a 1,000 row dataset runs fast, and
+most phases were an evening rather than a week once the scaffolding and the
+config discipline were in place.
 
-## Phase detail
+The less flattering one: the original plan allocated a week per phase because I
+did not know how long each would take. The estimate was not conservative, it was
+uninformed. The useful figure out of this is that one focused hour with a
+written definition of done moved the project further than I had assumed a week
+would.
 
-### Phase 0 — Foundations & EDA (Week 1 · Sep 28–Oct 4)
-Scaffold the repo, environment, config; load German Credit; first EDA.
-- **Deliverables:** repo live; `pip install` works; EDA notebook (distributions,
-  missingness, class balance).
-- **Done when:** the dataset loads reproducibly and its shape and target balance
-  are documented.
+## What landed after the plan ended
 
-### Phase 1 — Target definition & split (Week 2 · Oct 5–11)
-Define good/bad, build train/test (+ out-of-time slice where feasible).
-- **Deliverables:** `load.py`; a documented target definition; frozen splits.
-- **Done when:** the good/bad rule is explicit and defensible, and splits are
-  reproducible from a seed.
+Two things, both triggered by findings rather than scheduled:
 
-### Phase 2 — Binning / monotonic classing (Week 3 · Oct 12–18)
-Fine then coarse classing; enforce monotonic risk trends; special/missing bins.
-- **Deliverables:** `binning.py`; per-feature bin tables with bad rates.
-- **Done when:** each selected feature bins into a small, monotonic, interpretable
-  set of buckets.
+- **20 to 22 October: the protected characteristic.** The applicant scorer
+  produced a decline notice citing sex. That forced a guard, then removal of the
+  characteristic from the model, then a script to measure what the removal cost.
+  None of it was on the plan and it is the part of the project I would lead with.
+- **22 October: every published number was wrong.** The README reported a model
+  that failed two gates it had actually passed, and the test suite was holding
+  the error in place because it asserted the literal figures rather than
+  checking them against the run. See `PROGRESS.md` for the full story.
 
-### Phase 3 — WOE / IV & feature selection (Week 4 · Oct 19–25)
-WOE transform; Information Value; drop weak and investigate suspiciously strong.
-- **Deliverables:** `woe.py`; an IV ranking table; the selected feature set.
-- **Done when:** every model input is WOE-encoded and justified by IV, with
-  leakage checks on high-IV variables.
+Neither was foreseeable from a roadmap, which is the point of keeping a progress
+log alongside one.
 
-### Phase 4 — Logistic PD model (Week 5 · Oct 26–Nov 1)
-Fit logistic regression on WOE; check signs, VIF, significance.
-- **Deliverables:** `model.py`; coefficient table with diagnostics.
-- **Done when:** all signs are intuitive, multicollinearity is controlled, and
-  the fit is stable.
+## Phase detail, as originally written
 
-### Phase 5 — Validation (Week 6 · Nov 2–8)
-KS, Gini/AUC, ROC, calibration, PSI, rank-ordering.
-- **Deliverables:** `validate.py`; a validation report with charts.
-- **Done when:** discrimination, calibration and stability are all reported on
-  held-out data.
+### Phase 0: foundations and EDA
+Scaffold the repo, environment and config, load German Credit, first EDA.
+**Done when** the dataset loads reproducibly and its shape and target balance
+are documented.
 
-### Phase 6 — Score scaling & points table (Week 7 · Nov 9–15)
-PDO/factor/offset transform → the points table.
-- **Deliverables:** `scaling.py`; the scorecard points table.
-- **Done when:** any log-odds maps to a score, and the points table is complete
-  and readable.
+### Phase 1: target definition and split
+Define good and bad, build train and test splits.
+**Done when** the rule is explicit and defensible and the splits are
+reproducible from a seed.
 
-### Phase 7 — Interactive scorer + benchmark (Week 8 · Nov 16–22)
-Applicant scorer with reason codes; gradient-boosted benchmark and comparison.
-- **Deliverables:** `scorecard.py`, `app/scorer.py`, `benchmark.py`; a
-  scorecard-vs-GBM comparison table and write-up.
-- **Done when:** the scorer returns PD + score + reason codes for any applicant,
-  and the accuracy-vs-interpretability trade-off is quantified.
+### Phase 2: binning and monotonic classing
+Fine then coarse classing, monotonic risk trends, special and missing bins.
+**Done when** each selected feature bins into a small, monotonic, interpretable
+set of buckets.
 
-### Phase 8 — Docs & presentation (Week 9 · Nov 23–29)
-Finalise README with real charts; complete `methodology.md`; build the deck.
-- **Deliverables:** results-populated README; methodology write-up; slide deck
-  (problem → method → results → trade-off → limitations).
-- **Done when:** the project can be presented as fluently as it can be run.
-  **← Python presentation milestone, target 27 Nov 2026.**
+### Phase 3: WOE, IV and feature selection
+WOE transform, Information Value, drop the weak and investigate the
+suspiciously strong.
+**Done when** every model input is WOE encoded and justified by IV, with
+leakage checks on high IV variables.
 
-### Phase 9* — Optional SAS parallel build (Weeks 10–11 · Nov 30–Dec 13)
-Reimplement the scorecard in SAS (`PROC LOGISTIC`, WOE/IV in data steps).
-- **Deliverables:** `sas/scorecard.sas`; a note reconciling SAS vs. Python output.
-- **Done when:** both languages produce a matching scorecard, demonstrating
-  fluency in the SA bank toolchain. **← With-SAS milestone, target 11 Dec 2026.**
+### Phase 4: logistic PD model
+Fit on WOE, check signs, VIF and significance.
+**Done when** all signs are intuitive, multicollinearity is controlled and the
+fit is stable.
 
----
+### Phase 5: validation
+KS, Gini and AUC, ROC, calibration, PSI, rank ordering.
+**Done when** discrimination, calibration and stability are all reported on
+held-out data.
 
-## Parallel context
+### Phase 6: score scaling and points table
+The PDO, factor and offset transform into a points table.
+**Done when** any log odds maps to a score and the points table is complete and
+readable.
 
-This project runs alongside **V8 (Quantitative Football Model)** at a matching ~1
-hour/day. This scorecard is the smaller build and reaches its presentation
-milestone first (~27 Nov 2026); V8 follows (~18 Dec 2026). The optional SAS phase
-runs after both presentations. Both are baselined from 28 September 2026.
+### Phase 7: interactive scorer and benchmark
+Applicant scorer with reason codes, then the gradient-boosted comparison.
+**Done when** the scorer returns PD, score and reason codes for any applicant
+and the accuracy against interpretability trade-off is quantified.
 
-## Risks & adjustments
+### Phase 8: docs and presentation
+README with real charts, complete methodology.
+**Done when** the project can be presented as fluently as it can be run.
 
-- **German Credit is small**, so overfitting is the real danger — hence the
-  emphasis on out-of-time validation and PSI rather than chasing AUC.
-- **SAS access** may not materialise; Phase 9 is explicitly optional and never
-  blocks the Python presentation milestone.
-- If time compresses, the interactive scorer and the benchmark are the last
-  things cut — but the validated scorecard and its honest metrics never are.
+## The phase that did not happen here
+
+Phase 9 was scoped as an optional SAS parallel build, `PROC LOGISTIC` with WOE
+and IV in data steps, reconciled against the Python output.
+
+I built it in my [credit risk ECL engine](https://github.com/esiihle/credit-risk-ecl-engine)
+instead. The reasoning: `PROC SQL` has considerably more to say about what SAS
+can and cannot do than `PROC LOGISTIC` would have had here. That project's port
+had to rebuild `LEAD`, `LAG`, a bounded window frame and a recursive CTE,
+because PROC SQL has none of them, and the reconciliation is against a full ECL
+chain rather than one regression.
+
+A SAS logistic scorecard remains a reasonable extension. It is just not the one
+that teaches the most.
+
+## What was deliberately left out
+
+- **Out-of-time validation.** German Credit carries no usable origination date,
+  so train and test are a random split. Out-of-time is the better stability
+  check and it is not possible on this data.
+- **Reject inference.** Everyone in the dataset was granted credit, so it
+  describes accepted applicants only.
+- **A second dataset.** Home Credit was scoped as an optional follow-up.
+  Finishing the methodology properly on one dataset was worth more than running
+  a half-finished one on two.

@@ -1,5 +1,5 @@
 """
-Phase 7 tests — the gradient-boosted benchmark.
+Phase 7 tests, the gradient-boosted benchmark.
 
 The tests here are about **fairness of the comparison**, not about the
 benchmark's accuracy. Three things are easy to get wrong in a way that flatters
@@ -40,7 +40,7 @@ def split():
     checking_risk = pd.Series(checking).map(
         {"none": 0.10, "low": 0.50, "medium": 0.32, "high": 0.18})
     # The protected characteristic carries real signal, as it does in the
-    # original data — which is exactly why excluding it has a measurable cost.
+    # original data, which is exactly why excluding it has a measurable cost.
     sex_risk = pd.Series(sex).map({"male": 0.26, "female": 0.34})
 
     risk = np.clip(0.3 * checking_risk + 0.2 * sex_risk
@@ -155,7 +155,7 @@ def test_benchmark_produces_valid_probabilities(split):
 
 
 def test_benchmark_is_reproducible(split):
-    """Same seed, same model — the comparison has to be stable to be quotable."""
+    """Same seed, same model, the comparison has to be stable to be quotable."""
     first = benchmark.fit_benchmark(split["train"], split["test"],
                                     split["config"])
     second = benchmark.fit_benchmark(split["train"], split["test"],
@@ -272,7 +272,7 @@ def test_report_says_protected_characteristics_were_considered(split):
     """Even when nothing needed removing at this step.
 
     If the characteristic was already dropped from the schema upstream,
-    `protected_removed` is empty — and a reader of the report would have no way
+    `protected_removed` is empty, and a reader of the report would have no way
     to tell whether protected characteristics were considered at all.
     """
     cfg = dict(split["config"])

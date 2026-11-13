@@ -1,12 +1,12 @@
 """
-Stage 1 — Data load & EDA.
+Stage 1, Data load & EDA.
 
-Phase 0 (done): load the German Credit data and produce an EDA report — shape,
+Phase 0 (done): load the German Credit data and produce an EDA report, shape,
 target balance, numeric summaries, categorical cardinalities, and null counts.
 
 30 Sep 2026: added the REAL data path. The UCI file (``german.data``) is
 space-delimited, has no header row, and codes every categorical value as A11,
-A34, ... — unreadable as-is. The column order and the full code table live here
+A34, ..., unreadable as-is. The column order and the full code table live here
 so decoding is one documented, testable step rather than guesswork spread
 through the pipeline.
 
@@ -52,8 +52,8 @@ RAW_COLUMN_ORDER = [
 ]
 
 # ---------------------------------------------------------------------------
-# The code table. Decoding at load time means every later stage — binning, WOE,
-# the points table, the reason codes shown to an applicant — reads in plain
+# The code table. Decoding at load time means every later stage: binning, WOE,
+# the points table, the reason codes shown to an applicant: reads in plain
 # English instead of "A34". That is not cosmetic: a scorecard has to be
 # explainable to a customer and a regulator.
 #
@@ -150,7 +150,7 @@ VALUE_LABELS = {
 def decode_values(df, labels=None):
     """Replace the A-codes with readable labels, failing loudly on anything new.
 
-    An unrecognised code means the file is not what we think it is — a different
+    An unrecognised code means the file is not what we think it is, a different
     dataset version, a shifted column, a corrupt download. Silently leaving it
     as "A99" would quietly create a junk bin in Phase 2, so we stop here instead.
 
@@ -204,7 +204,7 @@ def load_german_raw(path, config=None, decode=True):
         raise FileNotFoundError(f"Raw data file not found: {raw_path}")
 
     # sep=r"\s+" handles one-or-more spaces; header=None because the file has no
-    # header row at all — the very first line is already an applicant.
+    # header row at all, the very first line is already an applicant.
     df = pd.read_csv(raw_path, sep=r"\s+", header=None, names=RAW_COLUMN_ORDER)
 
     # A shape check here is cheap insurance: if the file has a different number
@@ -306,7 +306,7 @@ def build_eda_report(df, config=None):
 
 
 # ===========================================================================
-# Phase 1 — target definition, validation, frozen train/test split
+# Phase 1: target definition, validation, frozen train/test split
 # ===========================================================================
 #
 # The order matters and is deliberate:
@@ -357,7 +357,7 @@ def validate_raw(df, config):
         )
     if len(raw_codes) < 2:
         raise DataQualityError(
-            "The target has only one class — a scorecard cannot be built from it."
+            "The target has only one class, a scorecard cannot be built from it."
         )
 
     return notes
@@ -421,12 +421,12 @@ def define_target(df, config, column="is_default"):
     The good/bad definition, stated plainly so it can be defended:
 
       * **Bad (1)** = the applicant is labelled 2 in the source, which the UCI
-        documentation defines as a customer with *bad credit risk* — the loan did
+        documentation defines as a customer with *bad credit risk*, the loan did
         not perform.
       * **Good (0)** = labelled 1, a customer whose credit performed.
 
     Three things worth knowing about that definition, all recorded in the
-    methodology rather than glossed over:
+    methodology rather than hidden:
 
       1. The source gives no delinquency depth (30/60/90 days past due) and no
          performance window, so "bad" cannot be tightened to a Basel-style
@@ -451,7 +451,7 @@ def to_analysis_table(df, config, id_prefix="APP"):
 
     German Credit has no identifier of its own, so one is built from row
     position: ``APP_0001`` and so on. That is only stable as long as the source
-    file's row order is — which it is, because the file is a static published
+    file's row order is, which it is, because the file is a static published
     download and we never edit it. Noted here because an ID that silently
     changes meaning is worse than no ID at all.
     """
@@ -501,7 +501,7 @@ def split_manifest(train, test, config, target_column="is_default"):
     """Describe the split precisely enough to prove a later run is identical.
 
     The fingerprint is a hash of the sorted applicant IDs in each half. If a
-    future run produces the same two fingerprints, the split is byte-identical —
+    future run produces the same two fingerprints, the split is byte-identical,
     which is how "reproducible from a seed" stops being a claim and becomes a
     check.
     """
@@ -607,7 +607,7 @@ def run_phase1(df_raw, config, save=True):
     if dropped_fraction > limit:
         raise DataQualityError(
             f"Dropped {dropped_fraction:.1%} of rows, above the {limit:.0%} limit. "
-            "Inspect the raw file before continuing — do not relax this silently."
+            "Inspect the raw file before continuing, do not relax this silently."
         )
 
     labelled = define_target(cleaned, config)

@@ -1,7 +1,7 @@
 r"""
-Stage 6 — Score scaling.  [Built in Phase 6, 14 Oct 2026]
+Stage 6, Score scaling.  [Built in Phase 6, 14 Oct 2026]
 
-Turns the logistic PD model into a **points table** — a list of plain statements
+Turns the logistic PD model into a **points table**, a list of plain statements
 with a number beside each, which an applicant can be shown and a credit
 committee can sign. The points table *is* the scorecard; everything before this
 was the machinery that produced it.
@@ -19,7 +19,7 @@ with
     \text{Offset} = \text{BaseScore} - \text{Factor}\times\ln(\text{BaseOdds})
 
 **PDO** is "points to double the odds". With `pdo = 20`, gaining 20 points means
-the good:bad odds double — which is the one sentence that explains a scorecard to
+the good:bad odds double, which is the one sentence that explains a scorecard to
 a non-technical audience, and the reason this scaling is used at all rather than
 just reporting the PD.
 
@@ -33,14 +33,14 @@ score decomposes into one additive contribution per characteristic:
                       \times \text{Factor} + \frac{\text{Offset}}{n}
 
 The intercept and offset are split evenly across the *n* model variables, which
-is a presentational choice — it makes every characteristic's points comparable
+is a presentational choice, it makes every characteristic's points comparable
 and the total come out right. Nothing in the model depends on the split.
 
 The sign chain, which must hold end to end
 ------------------------------------------
 Phase 1 defined 1 = default. Phase 3 fixed WOE so positive = safer. Phase 4
 therefore expects negative coefficients. Here, with :math:`\beta_k < 0`, a safer
-bin (positive WOE) gives :math:`-\beta_k\,\text{WOE}_k > 0` — **more points**.
+bin (positive WOE) gives :math:`-\beta_k\,\text{WOE}_k > 0`, **more points**.
 
 So **higher score = safer applicant**, which is the universal convention and the
 opposite direction to the PD. If any link in that chain were flipped, the
@@ -50,8 +50,8 @@ points table. `test_higher_score_means_lower_pd` is the end-to-end check.
 The verification that makes this trustworthy
 --------------------------------------------
 A points table is only worth anything if it reproduces the model it came from.
-`verify_against_model` scores every applicant both ways — through the points
-table and through the logistic model directly — and reports the largest
+`verify_against_model` scores every applicant both ways, through the points
+table and through the logistic model directly, and reports the largest
 disagreement. Before rounding it should be zero to floating-point precision; the
 only difference afterwards is the rounding, and that is measured rather than
 assumed.
@@ -195,7 +195,7 @@ def build_points_table(pd_model, woe_spec, config=None, round_points=True):
     table = pd.DataFrame(rows)
 
     # Within each characteristic, order bins by points so the table reads from
-    # riskiest to safest — which is how a committee pack presents it.
+    # riskiest to safest, which is how a committee pack presents it.
     table = table.sort_values(["feature", "points_exact"]).reset_index(drop=True)
 
     # The attainable range: worst and best bin of every characteristic.
@@ -206,7 +206,7 @@ def build_points_table(pd_model, woe_spec, config=None, round_points=True):
     #
     # The subtlety worth understanding: raising `base_score` does NOT fix this.
     # The offset moves with it, so every point moves with it, so the attainable
-    # range moves by exactly the same amount — the gap is invariant. The real
+    # range moves by exactly the same amount, the gap is invariant. The real
     # lever is `base_odds`.
     #
     # `base_odds = 50` asserts a reference applicant with a PD of 1/51 = 1.96%.
@@ -249,13 +249,13 @@ def score_applicants(binned, scorecard):
     """Score a frame of binned applicants by looking up and adding points.
 
     This is the whole point of the scorecard: scoring is a lookup and an
-    addition. No model object, no library version, no floating-point pipeline —
+    addition. No model object, no library version, no floating-point pipeline,
     a clerk with the printed table and a calculator gets the same answer.
 
     Returns
     -------
     (pandas.Series, pandas.DataFrame)
-        Total score per applicant, and the per-characteristic contributions —
+        Total score per applicant, and the per-characteristic contributions,
         which are the raw material for the reason codes in Phase 7.
     """
     table = scorecard["table"]
@@ -286,7 +286,7 @@ def score_applicants(binned, scorecard):
 
 
 # ===========================================================================
-# Verification — the step that makes the table trustworthy
+# Verification: the step that makes the table trustworthy
 # ===========================================================================
 
 def rounding_tolerance(scorecard, points_per_feature=0.5, slack=0.01):
@@ -299,7 +299,7 @@ def rounding_tolerance(scorecard, points_per_feature=0.5, slack=0.01):
     **This is why a fixed tolerance in points is the wrong design.** A
     two-characteristic card tolerates 1 point; an eleven-characteristic card
     needs 5.5. Setting one number for both either fails good tables or passes
-    broken ones — the first real run tripped on exactly that, failing an
+    broken ones, the first real run tripped on exactly that, failing an
     eleven-feature card at 2.277 points against a flat 1.0 limit.
     """
     if not scorecard.get("rounded", True):
@@ -311,8 +311,8 @@ def verify_against_model(binned, woe_matrix, pd_model, scorecard,
                          tolerance=None, points_per_feature=0.5):
     """Check the points table reproduces the model it came from.
 
-    Scores every applicant twice — once through the points table, once through
-    the logistic model directly — converts both to a PD, and reports the largest
+    Scores every applicant twice, once through the points table, once through
+    the logistic model directly, converts both to a PD, and reports the largest
     disagreement.
 
     Unrounded, the two must agree to floating-point precision: the points table
@@ -413,7 +413,7 @@ def cutoff_table(scores, target, scorecard, n_bands=10):
 def scorecard_report(scorecard, verification=None, cutoffs=None):
     """The points table, formatted the way a committee pack presents it."""
     constants = scorecard["constants"]
-    lines = ["Scorecard — points table", "-" * 25]
+    lines = ["Scorecard, points table", "-" * 25]
     lines.append(f"  {'PDO (points to double the odds)':<34} "
                  f"{constants['pdo']:>8.0f}")
     lines.append(f"  {'base score':<34} {constants['base_score']:>8.0f}")
@@ -437,12 +437,12 @@ def scorecard_report(scorecard, verification=None, cutoffs=None):
             lines.append(f"    but this model spans "
                          f"{pd_range['best_applicant']:.2%} (best applicant) to "
                          f"{pd_range['worst_applicant']:.2%} (worst).")
-        lines.append("    The ranking is unaffected — the scaling is linear — "
+        lines.append("    The ranking is unaffected, the scaling is linear, "
                      "but every score reads")
         lines.append("    oddly against the stated reference.")
         lines.append("    FIX: lower `base_odds` into the attainable PD range. "
                      "Raising base_score does")
-        lines.append("    NOT help — the offset moves with it, so the whole "
+        lines.append("    NOT help, the offset moves with it, so the whole "
                      "range shifts by the same")
         lines.append("    amount and the gap is unchanged.")
 

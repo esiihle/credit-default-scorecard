@@ -1,11 +1,11 @@
 """
-Phase 6 tests — score scaling and the points table.
+Phase 6 tests, score scaling and the points table.
 
 Two tests carry the weight:
 
-* `test_pdo_doubles_the_odds` — the defining property of the scaling, and the one
+* `test_pdo_doubles_the_odds`, the defining property of the scaling, and the one
   sentence that explains a scorecard to a non-technical audience.
-* `test_points_table_reproduces_the_model_exactly` — the points table is an
+* `test_points_table_reproduces_the_model_exactly`, the points table is an
   algebraic rearrangement of the logistic model, not an approximation. Unrounded
   it must agree to floating-point precision.
 
@@ -172,7 +172,7 @@ def test_points_table_reproduces_the_model_exactly():
     """Unrounded, the table is an algebraic rearrangement of the model.
 
     If this disagrees by anything beyond floating-point noise, the intercept
-    split or the sign chain is wrong — and the table would be a plausible-looking
+    split or the sign chain is wrong, and the table would be a plausible-looking
     object that does not represent the model.
     """
     parts = build_full_pipeline()
@@ -190,7 +190,7 @@ def test_points_table_reproduces_the_model_exactly():
 
 def test_rounding_error_is_small_and_measured():
     """Real scorecards use whole points. The cost of that must be known, not
-    assumed — with a handful of characteristics it is well under a point."""
+    assumed, with a handful of characteristics it is well under a point."""
     parts = build_full_pipeline()
     scorecard = scaling.build_points_table(
         parts["pd_model"], parts["woe_spec"], parts["config"],
@@ -212,7 +212,7 @@ def test_tolerance_scales_with_the_number_of_characteristics():
 
     The first real run failed an eleven-characteristic card at 2.277 points
     against a flat 1.0 limit. Rounding error is bounded by half a point per
-    characteristic, so the admissible total grows with the card — one number for
+    characteristic, so the admissible total grows with the card, one number for
     all cards either fails good tables or passes broken ones.
     """
     parts = build_full_pipeline()
@@ -264,7 +264,7 @@ def test_unreachable_base_score_is_flagged_not_ignored():
     """A real finding from this fixture, now a check.
 
     With only two characteristics the attainable range came out 460 to 552,
-    while the configured base score is 600 — a score no applicant can reach.
+    while the configured base score is 600, a score no applicant can reach.
     The ranking is unaffected because the scaling is linear, but every score
     reads oddly against the stated reference odds and a committee will ask about
     it on sight. So it is flagged rather than silently accepted.
@@ -391,7 +391,7 @@ def test_contributions_are_the_raw_material_for_reason_codes():
 
 
 def test_an_unseen_bin_gets_the_feature_mean_not_zero():
-    """Zero is not neutral on this scale — the offset is baked into every cell,
+    """Zero is not neutral on this scale, the offset is baked into every cell,
     so zero points would be a severe and arbitrary penalty."""
     parts = build_full_pipeline()
     scorecard = scaling.build_points_table(
@@ -427,7 +427,7 @@ def test_scoring_without_a_needed_column_fails_loudly():
 
 def test_cutoff_table_trades_approval_rate_against_bad_rate():
     """Each row is a policy option. A higher cut-off must approve fewer and
-    cleaner applicants — if not, the score is not ranking."""
+    cleaner applicants, if not, the score is not ranking."""
     parts = build_full_pipeline()
     scorecard = scaling.build_points_table(
         parts["pd_model"], parts["woe_spec"], parts["config"])

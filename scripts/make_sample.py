@@ -3,7 +3,7 @@ Build the small, committed sample from the real German Credit file.
 
 Why this script exists
 ----------------------
-The repo must run on a fresh clone with no downloads — so a tiny sample is
+The repo must run on a fresh clone with no downloads, so a tiny sample is
 committed. But a hand-typed sample is fiction, and fiction hides real data
 problems. This script cuts the sample out of the REAL file, stratified on the
 target and with a fixed seed, so it is representative, reproducible, and
@@ -69,7 +69,7 @@ def main():
     counts = sample[target].value_counts().sort_index().to_dict()
     print(f"Wrote {len(sample)} rows to {out_path.relative_to(REPO_ROOT)}")
     print(f"target balance (1=good, 2=bad): {counts}")
-    print(f"seed={seed} — rerunning this command reproduces the same sample.")
+    print(f"seed={seed}, rerunning this command reproduces the same sample.")
 
 
 if __name__ == "__main__":

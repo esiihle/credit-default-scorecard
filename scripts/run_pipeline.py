@@ -1,9 +1,9 @@
 """
-Credit Default Scorecard — end-to-end pipeline runner (config-driven).
+Credit Default Scorecard, end-to-end pipeline runner (config-driven).
 
 Phase 0: this runs the implemented stages (load + EDA report) fully, then walks
 the remaining stages and reports each as [done] or [pending]. As each phase is
-built, its stage lights up here automatically — so this runner doubles as the
+built, its stage lights up here automatically, so this runner doubles as the
 project's live progress indicator.
 
 30 Sep 2026: the runner now prefers the REAL German Credit file in data/raw/.
@@ -59,14 +59,14 @@ def main():
     config = load_config(args.config)
     set_seed(config.get("seed", 42))
 
-    print(f"\nScorecard pipeline — config loaded, seed={config.get('seed', 42)}")
+    print(f"\nScorecard pipeline, config loaded, seed={config.get('seed', 42)}")
 
     # --- Stage 1: load + EDA ---
     # Three ways in, in priority order:
     #   1. --data <file>  : one explicit CSV
     #   2. data/raw/german.data : the real UCI file (space-delimited, coded)
     #   3. the committed sample : so a fresh clone always runs
-    print("Stage 1 — Load & EDA")
+    print("Stage 1, Load & EDA")
     on_sample = False          # set in the fallback branch below
     data_cfg = config["data"]
     raw_path = REPO_ROOT / data_cfg["raw_dir"] / data_cfg.get("raw_file", "german.data")
@@ -75,11 +75,11 @@ def main():
         data_path = Path(args.data)
         if not data_path.is_absolute():
             data_path = REPO_ROOT / data_path
-        print(f"  source: explicit file — {data_path}")
+        print(f"  source: explicit file, {data_path}")
         df = load.load_data(data_path, config)
 
     elif raw_path.exists() and not args.sample:
-        print(f"  source: real data — {raw_path.name} ({data_cfg.get('source', 'UCI')})")
+        print(f"  source: real data, {raw_path.name} ({data_cfg.get('source', 'UCI')})")
         df = load.load_german_raw(raw_path, config)
 
     else:
@@ -88,12 +88,12 @@ def main():
             print(f"  MISSING: {raw_path.name}  ->  download {data_cfg['download_url']}")
             print(f"           and save it as {raw_path}")
         reason = "forced by --sample" if args.sample else "real file not downloaded yet"
-        print(f"  source: bundled sample ({reason}) — {sample_path.name}")
+        print(f"  source: bundled sample ({reason}), {sample_path.name}")
         df = load.load_data(sample_path, config)
         on_sample = True
         print()
         print("  NOTE: the sample is 24 rows. The data stages below are real and")
-        print("  worth reading, but the MODEL stages cannot run on it — there are")
+        print("  worth reading, but the MODEL stages cannot run on it, there are")
         print("  not enough events to fit a logistic regression. Download the real")
         print("  file to exercise the whole pipeline.")
 
@@ -112,7 +112,7 @@ def main():
     print()
 
     # --- Phase 2: binning, fitted on TRAIN ONLY ------------------------------
-    print("Stage 2 — Binning (coarse classing)")
+    print("Stage 2, Binning (coarse classing)")
     spec = binning.fit_bins(train, config)
 
     train_binned = binning.apply_bins(train, spec)
@@ -138,7 +138,7 @@ def main():
 
     # --- Phase 3: WOE / IV, fitted on TRAIN ONLY -----------------------------
     print()
-    print("Stage 3 — WOE / Information Value")
+    print("Stage 3, WOE / Information Value")
     bin_order = {f: binning.spec_bin_order(d) for f, d in spec["features"].items()}
     woe_spec = woe.compute_woe_iv(train_binned, train["is_default"], config,
                                   bin_order=bin_order)
@@ -157,7 +157,7 @@ def main():
 
     # --- Phase 4: logistic PD model, trained on TRAIN ONLY -------------------
     print()
-    print("Stage 4 — Logistic PD model")
+    print("Stage 4, Logistic PD model")
     pd_model = None
     try:
         pd_model = model.fit_pd_model(train_woe, train["is_default"], config)
@@ -165,7 +165,7 @@ def main():
         # Not an unexpected failure: on the bundled sample there are far too few
         # events to identify the parameters, and refusing is the correct answer.
         # The run continues so the rest of the pipeline still reports its status.
-        print("  CANNOT FIT — and that is the right outcome here:")
+        print("  CANNOT FIT, and that is the right outcome here:")
         for line in str(error).splitlines():
             print(f"    {line}")
 
@@ -179,7 +179,7 @@ def main():
         print()
         print(f"  mean predicted PD on train   {train_pd.mean():.1%}")
         print(f"  observed bad rate on train   {train['is_default'].mean():.1%}")
-        print("  (a fitted logistic is calibrated in-sample by construction — this")
+        print("  (a fitted logistic is calibrated in-sample by construction, this")
         print("   says nothing about performance. Phase 5 uses the held-out half.)")
 
         if not args.no_save:
@@ -190,9 +190,9 @@ def main():
     # The first and only point at which test data is used. Nothing here may
     # feed back into a modelling decision.
     print()
-    print("Stage 5 — Validation (held-out test set)")
+    print("Stage 5, Validation (held-out test set)")
     if pd_model is None:
-        print("  SKIPPED — there is no fitted PD model to validate.")
+        print("  SKIPPED, there is no fitted PD model to validate.")
     else:
         train_pd = model.predict_pd(pd_model, train_woe)
         test_pd = model.predict_pd(pd_model, test_woe)
@@ -210,9 +210,9 @@ def main():
 
     # --- Phase 6: score scaling into the points table ------------------------
     print()
-    print("Stage 6 — Score scaling (points table)")
+    print("Stage 6, Score scaling (points table)")
     if pd_model is None:
-        print("  SKIPPED — there is no fitted PD model to scale.")
+        print("  SKIPPED, there is no fitted PD model to scale.")
     else:
         scale_cfg = config.get("scaling", {})
         scorecard = scaling.build_points_table(
@@ -240,9 +240,9 @@ def main():
     # --- Phase 7: gradient-boosted benchmark ---------------------------------
     # The one question: what does the interpretability cost?
     print()
-    print("Stage 7 — Benchmark: scorecard vs gradient boosting")
+    print("Stage 7, Benchmark: scorecard vs gradient boosting")
     if pd_model is None:
-        print("  SKIPPED — there is no scorecard to compare against.")
+        print("  SKIPPED, there is no scorecard to compare against.")
     else:
         try:
             fitted_benchmark = benchmark.fit_benchmark(train, test, config)

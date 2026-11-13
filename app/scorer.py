@@ -4,8 +4,8 @@ Interactive applicant scorer (CLI).
 Scores an applicant against the frozen scorecard and explains the result in
 plain language, including reason codes.
 
-It reads only the FROZEN artefacts written by the pipeline — the binning spec,
-the WOE spec and the points table — and never refits anything. That is the
+It reads only the FROZEN artefacts written by the pipeline, the binning spec,
+the WOE spec and the points table, and never refits anything. That is the
 point: scoring an applicant must not depend on having the training data, the
 library versions, or the pipeline available. A scorecard that can only be used
 by the person who built it is not a scorecard.
@@ -39,7 +39,7 @@ def explain_or_report_refusal(applicant, points_table, binning_spec, config,
                               reasons, cutoff):
     """Score and explain, turning a fair-lending refusal into a clear message.
 
-    A `FairLendingError` is not a crash — it is the scorer declining to produce
+    A `FairLendingError` is not a crash, it is the scorer declining to produce
     an explanation that could not lawfully be given. It deserves a readable
     message and a non-zero exit code, not a traceback.
     """
@@ -47,7 +47,7 @@ def explain_or_report_refusal(applicant, points_table, binning_spec, config,
         result = scorer.score_applicant(applicant, points_table, binning_spec,
                                         config, reasons)
     except scorer.FairLendingError as error:
-        print("  CANNOT EXPLAIN THIS DECISION — refused on fair-lending grounds:")
+        print("  CANNOT EXPLAIN THIS DECISION, refused on fair-lending grounds:")
         for line in str(error).splitlines():
             print(f"    {line}")
         return False
@@ -111,13 +111,13 @@ def prompt_for_applicant(config, binning_spec):
             try:
                 applicant[column] = float(raw)
             except ValueError:
-                print(f"    '{raw}' is not a number — leaving blank.")
+                print(f"    '{raw}' is not a number, leaving blank.")
 
     for column in schema.get("categorical_columns", []):
         definition = binning_spec["features"].get(column)
         options = sorted(definition["mapping"]) if definition else []
         if options:
-            print(f"\n  {column} — options:")
+            print(f"\n  {column}, options:")
             for index, option in enumerate(options, start=1):
                 print(f"      {index:>2}. {option}")
             raw = input(f"  choose 1-{len(options)} (or type the value): ").strip()
@@ -209,7 +209,7 @@ def main():
         return
 
     print("=" * 66)
-    print(" Credit Default Scorecard — applicant scorer")
+    print(" Credit Default Scorecard, applicant scorer")
     print(f" points table built {points_table.get('created_utc', 'unknown')}")
     print(f" score range {points_table['score_range']['minimum']}"
           f"-{points_table['score_range']['maximum']}")
@@ -226,7 +226,7 @@ def main():
             scored = scorer.score_many(applicants, points_table, binning_spec,
                                        config, args.reasons)
         except scorer.FairLendingError as error:
-            print("CANNOT SCORE THIS FILE — refused on fair-lending grounds:")
+            print("CANNOT SCORE THIS FILE, refused on fair-lending grounds:")
             for line in str(error).splitlines():
                 print(f"  {line}")
             sys.exit(2)
@@ -257,7 +257,7 @@ def main():
                 print(f"  attributes supplied: {len(applicant)} "
                       f"(e.g. {shown})")
             else:
-                print("  attributes supplied: none — everything blank")
+                print("  attributes supplied: none, everything blank")
             print()
             ok = explain_or_report_refusal(applicant, points_table,
                                            binning_spec, config,

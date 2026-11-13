@@ -1,5 +1,5 @@
 """
-Phase 5 tests — validation metrics.
+Phase 5 tests, validation metrics.
 
 The metrics here are what a credit committee reads, so the tests check them
 against cases where the right answer is known independently: a perfect model, a
@@ -59,7 +59,7 @@ def test_perfect_model_has_auc_one():
 
 
 def test_reversed_model_has_auc_zero():
-    """A perfectly backwards model — the symptom of a flipped sign upstream."""
+    """A perfectly backwards model, the symptom of a flipped sign upstream."""
     scores = np.array([0.1, 0.2, 0.3, 0.7, 0.8, 0.9])
     target = np.array([1, 1, 1, 0, 0, 0])
 
@@ -163,7 +163,7 @@ def test_auc_is_blind_to_a_level_error_but_calibration_is_not():
     earlier version of this test used `clip(pd * 2, 0, 0.999)`, which ties every
     high-risk account at the ceiling, destroys real ranking information, and
     moved AUC from 0.820 to 0.804. Clipping is not a monotonic transform at the
-    boundary — a small thing, and the reason this test now uses a logit shift.
+    boundary, a small thing, and the reason this test now uses a logit shift.
     """
     predicted, target = make_scored_population(4000, seed=6)
 

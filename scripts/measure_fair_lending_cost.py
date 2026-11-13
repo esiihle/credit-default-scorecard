@@ -5,8 +5,8 @@ Measure what removing the protected characteristic costs.
 `personal_status_sex` encodes SEX and was removed from the model on
 20 October 2026. The README and the methodology both state a cost for that
 removal. This script is what makes that a MEASUREMENT rather than a claim: it
-fits the whole pipeline twice — once with the characteristic, once without,
-everything else held fixed — and writes the comparison to
+fits the whole pipeline twice, once with the characteristic, once without,
+everything else held fixed, and writes the comparison to
 `docs/charts/fair_lending.json`.
 
 Why a script and not a note in a file
@@ -69,7 +69,7 @@ def fit_and_validate(frame, config):
         model.predict_pd(pd_model, woe_train), train["is_default"],
         model.predict_pd(pd_model, woe_test), test["is_default"], config)
 
-    # The characteristic's own Information Value, where it is present — the
+    # The characteristic's own Information Value, where it is present, the
     # standalone measure of how much it carried before anything else saw it.
     protected_iv = {}
     for name, definition in woe_spec["features"].items():
@@ -104,7 +104,7 @@ def main():
     protected = list((config.get("fair_lending", {}) or {})
                      .get("protected_characteristics", []))
     if not protected:
-        print("config.fair_lending.protected_characteristics is empty — "
+        print("config.fair_lending.protected_characteristics is empty, "
               "nothing to measure.")
         return 1
 
@@ -191,7 +191,7 @@ def main():
     delta = cost["cost"]["test_gini"]
 
     # If the characteristic never made it into the model, the two runs are the
-    # same model and the identical figures are a result, not a bug. Say so —
+    # same model and the identical figures are a result, not a bug. Say so,
     # otherwise an unexplained row of identical numbers reads as broken code.
     not_selected = [n for n in protected
                     if n not in with_protected["selected"]]
@@ -210,7 +210,7 @@ def main():
               + (f", and its standalone IV was {iv:.4f}." if iv is not None else "."))
         print()
         print("A difference smaller than the metric's standard error is not "
-              "evidence of a difference — quote it with that caveat.")
+              "evidence of a difference, quote it with that caveat.")
     print()
     print("  " + "-" * 68)
     print("  Then run: pytest tests/test_docs.py")
